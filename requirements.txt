@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+aiosqlite
+httpx[socks]
+pyyaml
+python-jose[cryptography]
+passlib[bcrypt]
+apscheduler

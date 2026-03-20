@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+venv/
+.venv/
+env/
+ENV/
+
+# 环境变量与密钥（勿提交）
+.env
+.env.*
+!.env.example
+
+# SQLite / 本地数据
+*.db
+*.sqlite
+*.sqlite3
+app/data/
+data/
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Docker（可选：本地构建缓存）
+# .docker/
+
+# 日志与临时文件
+*.log
+debug-*.log
+logs/
+tmp/
+temp/
+
+# Playwright / MCP 等本地工具输出
+.playwright-mcp/

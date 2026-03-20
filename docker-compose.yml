@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  clash-hub:
+    build: .
+    container_name: clash-hub
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      - ADMIN_PASSWORD=admin888
+    restart: always
