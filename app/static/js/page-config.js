@@ -2,6 +2,7 @@
  * 配置页：模板与预设、过滤与系统设置、YAML/可视化预览与复制
  * 依赖：core.js；switchPage('config') → loadConfigPage() / loadSettings()
  */
+
 function tplDescPreset(n) {
     const m = { '精简版': '基础分流, 7 个代理组', '标准版': '常用服务分流, 14 个代理组', '完整版': '全面精细分流, 33 个代理组' };
     return m[n] || '';
@@ -250,7 +251,7 @@ async function saveSystemSettings() {
     } catch (e) { toast(e.message, 'error'); }
 }
 
-/** 用 DOM 挂载 YAML，避免 innerHTML 解析高亮 HTML 时因特殊内容导致整块不显示 */
+/** 用 DOM 挂载 YAML；高亮由 Prism（CDN）完成，主题色见 components.css 中 .yaml-viewer .token.* */
 function mountYamlViewer(container, yaml) {
     const raw = yaml == null ? '' : String(yaml);
     container.replaceChildren();
@@ -261,10 +262,18 @@ function mountYamlViewer(container, yaml) {
     const pre = document.createElement('pre');
     pre.className = 'yaml-code';
     const code = document.createElement('code');
+    code.className = 'language-yaml';
     code.textContent = raw;
     pre.appendChild(code);
     container.appendChild(gutter);
     container.appendChild(pre);
+    if (typeof Prism !== 'undefined' && Prism.highlightElement) {
+        try {
+            Prism.highlightElement(code);
+        } catch (_) {
+            /* 降级：保留纯文本 */
+        }
+    }
 }
 
 function setPreviewMode(mode) {

@@ -17,6 +17,9 @@
 
 <body>
 {% block body %}{% endblock %}
+    <!-- Prism：YAML 语法高亮（先于业务脚本，供 page-config mountYamlViewer 使用） -->
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-yaml.min.js"></script>
     <!-- 脚本加载顺序：core → 各页逻辑 → app（路由与 token 引导）；非 module，全局函数供 HTML onclick 使用 -->
     <script src="/static/js/core.js"></script>
     <script src="/static/js/page-home.js"></script>

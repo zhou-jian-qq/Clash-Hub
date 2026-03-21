@@ -18,14 +18,15 @@
     --nav-active: #3b82f6;
     --shadow: 0 4px 24px rgba(15, 23, 42, .08);
     --modal-bg: rgba(15, 23, 42, .45);
-    --yaml-bg: #0f172a;
-    --yaml-text: #e2e8f0;
-    --yaml-gutter: #475569;
-    --yaml-k: #4ade80;
-    --yaml-p: #94a3b8;
-    --yaml-str: #fbbf24;
-    --yaml-num: #38bdf8;
-    --yaml-comment: #64748b;
+    /* YAML 预览：嵌入暗色面板，Nord 系柔和配色（与全局亮/暗无关，两主题共用同一套） */
+    --yaml-bg: #2e3440;
+    --yaml-text: #eceff4;
+    --yaml-gutter: #4c566a;
+    --yaml-k: #88c0d0;
+    --yaml-p: #7b88a1;
+    --yaml-str: #a3be8c;
+    --yaml-num: #b48ead;
+    --yaml-comment: #6c7086;
 }
 
 :root[data-theme="dark"] {
@@ -44,12 +45,12 @@
     --nav-active: #2563eb;
     --shadow: 0 4px 24px rgba(0, 0, 0, .35);
     --modal-bg: rgba(0, 0, 0, .6);
-    --yaml-bg: #020617;
-    --yaml-text: #e2e8f0;
-    --yaml-gutter: #475569;
-    --yaml-k: #4ade80;
-    --yaml-p: #94a3b8;
-    --yaml-str: #fbbf24;
-    --yaml-num: #38bdf8;
-    --yaml-comment: #64748b;
+    --yaml-bg: #2e3440;
+    --yaml-text: #eceff4;
+    --yaml-gutter: #4c566a;
+    --yaml-k: #88c0d0;
+    --yaml-p: #7b88a1;
+    --yaml-str: #a3be8c;
+    --yaml-num: #b48ead;
+    --yaml-comment: #6c7086;
 }

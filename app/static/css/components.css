@@ -313,21 +313,59 @@ textarea:focus {
 }
 
 .yaml-code {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    min-width: 0;
     margin: 0;
     padding: .75rem;
-    overflow: visible;
+    overflow: auto;
     white-space: pre;
-    color: inherit;
+    color: var(--yaml-text);
     max-width: none;
+    tab-size: 2;
+    -moz-tab-size: 2;
 }
 
-.yaml-code code {
+.yaml-code code.language-yaml {
     display: block;
     font-family: inherit;
     font-size: inherit;
-    color: inherit;
+    color: var(--yaml-text);
     white-space: pre;
+    background: transparent;
+}
+
+/* Prism YAML：映射到主题变量（不引入 Prism 默认 theme CSS） */
+.yaml-viewer .token.comment {
+    color: var(--yaml-comment);
+}
+
+.yaml-viewer .token.key,
+.yaml-viewer .token.atrule {
+    color: var(--yaml-k);
+}
+
+.yaml-viewer .token.string,
+.yaml-viewer .token.scalar {
+    color: var(--yaml-str);
+}
+
+.yaml-viewer .token.number,
+.yaml-viewer .token.datetime,
+.yaml-viewer .token.boolean,
+.yaml-viewer .token.null {
+    color: var(--yaml-num);
+}
+
+.yaml-viewer .token.directive {
+    color: var(--yaml-str);
+}
+
+.yaml-viewer .token.tag {
+    color: var(--yaml-p);
+}
+
+.yaml-viewer .token.punctuation {
+    color: var(--yaml-p);
 }
 
 .yaml-k { color: var(--yaml-k); }
