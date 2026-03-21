@@ -6,24 +6,33 @@
 /* --- 按钮 --- */
 .btn {
     padding: .5rem 1rem;
-    border-radius: .5rem;
+    border-radius: .6rem;
     font-weight: 500;
     cursor: pointer;
-    transition: transform .1s, background .15s, opacity .15s;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s, opacity .15s;
     border: none;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
 
 .btn:active {
-    transform: scale(.98);
+    transform: translateY(0) scale(.98);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .btn-primary {
     background: var(--accent);
     color: #fff;
+    box-shadow: 0 1px 3px rgba(79, 70, 229, 0.1);
 }
 
 .btn-primary:hover {
     background: var(--accent-hover);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.25);
 }
 
 .btn-danger {
@@ -54,22 +63,79 @@
     background: var(--danger-bg);
 }
 
-.btn-accent-orange {
-    background: #ea580c;
+/**
+ * 幽灵 / 线框按钮：同步、刷新等低频工具操作（不与「启用」抢绿色语义）
+ */
+.btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+    background: var(--nav-hover);
+    border-color: var(--muted);
+}
+
+/**
+ * 成功 / 启用：与主题主色蓝区分，用青绿系
+ */
+.btn-success {
+    background: #0d9488;
     color: #fff;
 }
 
-.btn-accent-orange:hover {
-    background: #c2410c;
+.btn-success:hover {
+    background: #0f766e;
 }
 
-.btn-refresh {
-    background: #16a34a;
-    color: #fff;
+:root[data-theme="dark"] .btn-success {
+    background: #0f766e;
+    color: #ecfdf5;
 }
 
-.btn-refresh:hover {
-    background: #15803d;
+:root[data-theme="dark"] .btn-success:hover {
+    background: #14b8a6;
+    color: #042f2e;
+}
+
+/**
+ * 主色线框：检测、测速、诊断类（与 primary 实心形成层次）
+ */
+.btn-outline-accent {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+}
+
+.btn-outline-accent:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+:root[data-theme="dark"] .btn-outline-accent:hover {
+    background: rgba(96, 165, 250, 0.14);
+}
+
+/**
+ * 琥珀线框：禁用、停用（可逆，区别于删除的实心红）
+ */
+.btn-outline-warn {
+    background: transparent;
+    color: #b45309;
+    border: 1px solid rgba(180, 83, 9, 0.5);
+}
+
+.btn-outline-warn:hover {
+    background: rgba(245, 158, 11, 0.12);
+}
+
+:root[data-theme="dark"] .btn-outline-warn {
+    color: #fcd34d;
+    border-color: rgba(252, 211, 77, 0.45);
+}
+
+:root[data-theme="dark"] .btn-outline-warn:hover {
+    background: rgba(251, 191, 36, 0.12);
 }
 
 .btn-sm {
@@ -206,7 +272,7 @@ textarea:focus {
     inset: 0;
     background: var(--muted);
     border-radius: 9999px;
-    transition: background .2s ease;
+    transition: background .25s ease;
     pointer-events: none;
     z-index: 1;
 }
@@ -220,9 +286,9 @@ textarea:focus {
     top: 50%;
     transform: translateY(-50%);
     background: #f1f5f9;
-    border-radius: 50%;
-    transition: transform .2s ease;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+    border-radius: 9999px;
+    transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
 }
 
 .sub-switch input:checked + .sub-switch-slider {

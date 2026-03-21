@@ -3,21 +3,22 @@
  * 依赖：html[data-theme="light"|"dark"]，与 Tailwind 工具类配合使用。
  */
 :root[data-theme="light"] {
-    --bg: #f1f5f9;
+    --bg: #f8fafc;
+    --bg-glass: rgba(248, 250, 252, 0.85);
     --surface: #ffffff;
     --card: #ffffff;
     --text: #0f172a;
     --muted: #64748b;
     --border: #e2e8f0;
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --danger: #dc2626;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --danger: #ef4444;
     --danger-bg: #fef2f2;
     --input-bg: #f8fafc;
-    --nav-hover: #e2e8f0;
-    --nav-active: #3b82f6;
-    --shadow: 0 4px 24px rgba(15, 23, 42, .08);
-    --modal-bg: rgba(15, 23, 42, .45);
+    --nav-hover: #f1f5f9;
+    --nav-active: #4f46e5;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+    --modal-bg: rgba(15, 23, 42, 0.45);
     /* YAML 预览：嵌入暗色面板，Nord 系柔和配色（与全局亮/暗无关，两主题共用同一套） */
     --yaml-bg: #2e3440;
     --yaml-text: #eceff4;
@@ -30,21 +31,22 @@
 }
 
 :root[data-theme="dark"] {
-    --bg: #0f172a;
-    --surface: #1e293b;
-    --card: #1e293b;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --border: #334155;
-    --accent: #3b82f6;
-    --accent-hover: #60a5fa;
+    --bg: #09090b;
+    --bg-glass: rgba(9, 9, 11, 0.85);
+    --surface: #18181b;
+    --card: #18181b;
+    --text: #e4e4e7;
+    --muted: #a1a1aa;
+    --border: #27272a;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
     --danger: #f87171;
-    --danger-bg: rgba(239, 68, 68, .15);
-    --input-bg: #0f172a;
-    --nav-hover: #334155;
-    --nav-active: #2563eb;
-    --shadow: 0 4px 24px rgba(0, 0, 0, .35);
-    --modal-bg: rgba(0, 0, 0, .6);
+    --danger-bg: rgba(239, 68, 68, 0.15);
+    --input-bg: #09090b;
+    --nav-hover: #27272a;
+    --nav-active: #4f46e5;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    --modal-bg: rgba(0, 0, 0, 0.6);
     --yaml-bg: #2e3440;
     --yaml-text: #eceff4;
     --yaml-gutter: #4c566a;

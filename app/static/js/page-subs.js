@@ -24,10 +24,10 @@ async function loadSubs() {
     ${s.prefix ? `<span class="tag bg-blue-600/20 text-blue-400">${esc(s.prefix)}</span>` : ''}
   </div>
   <div class="flex flex-wrap gap-1">
-    <button type="button" class="btn btn-accent-orange btn-sm" onclick="checkSub(${s.id})" title="检测：拉取+解析；单节点时额外 TCP 建连延迟">检测</button>
-    <button type="button" class="btn btn-refresh btn-sm" onclick="refreshSub(${s.id})">刷新</button>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="refreshSub(${s.id})">刷新</button>
+    <button type="button" class="btn btn-outline-accent btn-sm" onclick="checkSub(${s.id})" title="检测：拉取+解析；单节点时额外 TCP 建连延迟">检测</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="showEditSub(${s.id})">编辑</button>
-    <button class="btn btn-danger btn-sm" onclick="deleteSub(${s.id})">删除</button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="deleteSub(${s.id})">删除</button>
   </div>
 </div>
 <div class="flex flex-wrap items-center gap-4 text-sm text-slate-400 mb-2">

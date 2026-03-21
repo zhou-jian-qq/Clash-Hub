@@ -62,8 +62,8 @@ async function loadImportBatches() {
   <span class="tag bg-slate-600/50 text-xs shrink-0">${esc(n.proxy_type)}</span>
   <span class="text-xs text-slate-500 hidden sm:inline">${formatIsoTime(n.updated_at)}</span>
   <div class="flex flex-wrap gap-1 ml-auto">
-    <button type="button" class="btn btn-accent-orange btn-sm" onclick="checkImportNode(${n.id})">测速</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="showEditImportNodeModal(${n.id})">编辑</button>
+    <button type="button" class="btn btn-outline-accent btn-sm" onclick="checkImportNode(${n.id})">测速</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="deleteImportNode(${n.id})">删除</button>
   </div>
 </div>`).join('');
@@ -73,8 +73,8 @@ async function loadImportBatches() {
   <span class="text-xs text-slate-400 font-normal">添加 ${formatIsoTime(b.created_at)}</span>
   <span class="text-xs text-slate-500 font-normal">更新 ${formatIsoTime(b.updated_at)}</span>
   <span class="flex flex-wrap gap-1 ml-auto" onclick="event.preventDefault(); event.stopPropagation();">
-    <button type="button" class="btn btn-refresh btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, true)" title="本批次下全部节点设为启用">批量启用</button>
-    <button type="button" class="btn btn-danger btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, false)" title="本批次下全部节点设为禁用">批量禁用</button>
+    <button type="button" class="btn btn-outline-warn btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, false)" title="本批次下全部节点设为禁用">批量禁用</button>
+    <button type="button" class="btn btn-success btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, true)" title="本批次下全部节点设为启用">批量启用</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="renameImportBatch(${b.id})">改名</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="deleteImportBatch(${b.id})">删除批次</button>
   </span>
@@ -87,15 +87,51 @@ async function loadImportBatches() {
     } catch (e) { toast(e.message, 'error'); }
 }
 
-async function renameImportBatch(id) {
+/** 批次改名：与「编辑节点」相同的 modal-bg + card 弹窗，替代浏览器 prompt */
+function renameImportBatch(id) {
+    showRenameImportBatchModal(id);
+}
+
+function showRenameImportBatchModal(id) {
     const b = _importBatchesCache.find(x => x.id === id);
-    const cur = b ? b.name : '';
-    const name = prompt('批次名称', cur);
-    if (name == null) return;
-    const t = name.trim();
-    if (!t) { toast('名称不能为空', 'error'); return; }
+    if (!b) { toast('未找到批次', 'error'); loadImportBatches(); return; }
+    const cur = b.name || '';
+    document.getElementById('batchRenameModal')?.remove();
+    const html = `<div class="modal-bg" id="batchRenameModal" onclick="if(event.target===this)this.remove()">
+    <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-3">重命名批次</h3>
+      <p class="text-sm text-slate-400 mb-2">修改批次在列表中的名称。聚合时节点的默认前缀为「批次名_序号」。</p>
+      <div>
+        <label class="text-sm text-slate-400" for="batch_rename_input">批次名称</label>
+        <input id="batch_rename_input" type="text" class="w-full mt-1" placeholder="例如：我的节点" autocomplete="off">
+      </div>
+      <div class="flex gap-2 justify-end mt-3">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('batchRenameModal').remove()">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveRenameImportBatch(${id})">保存</button>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const inp = document.getElementById('batch_rename_input');
+    if (inp) {
+        inp.value = cur;
+        inp.focus();
+        inp.select();
+        inp.addEventListener('keydown', function onRenameKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveRenameImportBatch(id);
+            }
+        });
+    }
+}
+
+async function saveRenameImportBatch(id) {
+    const name = (document.getElementById('batch_rename_input')?.value || '').trim();
+    if (!name) { toast('名称不能为空', 'error'); return; }
     try {
-        await api('/api/import-batches/' + id, { method: 'PUT', body: JSON.stringify({ name: t }) });
+        await api('/api/import-batches/' + id, { method: 'PUT', body: JSON.stringify({ name }) });
+        document.getElementById('batchRenameModal')?.remove();
         toast('已更新');
         await loadImportBatches();
         schedulePreviewRefresh();

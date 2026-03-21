@@ -61,22 +61,22 @@ function shadowrocketImportUrl() {
 
 function clientRow(iconSvg, name, actionsHtml) {
     return `<div class="client-row">
-    <div class="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0 text-lg">${iconSvg}</div>
+    <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-lg shadow-sm">${iconSvg}</div>
     <div class="flex-1 min-w-0 font-medium">${esc(name)}</div>
     <div class="flex flex-wrap gap-2 justify-end">${actionsHtml}</div>
   </div>`;
 }
 
 function renderHomeClientPanels() {
-    const oneImport = `<button type="button" class="btn btn-accent-orange btn-sm" onclick="openImportClash()">一键导入</button>`;
-    const oneImportMeta = `<button type="button" class="btn btn-accent-orange btn-sm" onclick="openImportClashMeta()">一键导入</button>`;
-    const copySub = `<button type="button" class="btn btn-accent-orange btn-sm" onclick="copyGenericSub()">复制订阅</button>`;
-    const sr = `<button type="button" class="btn btn-accent-orange btn-sm" onclick="openShadowrocket()">一键导入</button>`;
+    const oneImport = `<button type="button" class="btn btn-primary btn-sm" onclick="openImportClash()">一键导入</button>`;
+    const oneImportMeta = `<button type="button" class="btn btn-primary btn-sm" onclick="openImportClashMeta()">一键导入</button>`;
+    const copySub = `<button type="button" class="btn btn-outline-accent btn-sm" onclick="copyGenericSub()">复制订阅</button>`;
+    const sr = `<button type="button" class="btn btn-primary btn-sm" onclick="openShadowrocket()">一键导入</button>`;
 
-    const iconClash = '🐱';
-    const iconM = '<span class="text-violet-400 font-bold">M</span>';
-    const iconV = '<span class="text-blue-400 font-bold">V</span>';
-    const iconR = '🚀';
+    const iconClash = '<i data-lucide="cat" class="w-5 h-5 text-indigo-400"></i>';
+    const iconM = '<i data-lucide="cpu" class="w-5 h-5 text-violet-400"></i>';
+    const iconV = '<i data-lucide="zap" class="w-5 h-5 text-blue-400"></i>';
+    const iconR = '<i data-lucide="rocket" class="w-5 h-5 text-orange-400"></i>';
 
     document.getElementById('homeSubPanelIos').innerHTML =
         clientRow(iconClash, 'Clash（iOS / Stash 等）', oneImport) +
@@ -91,6 +91,10 @@ function renderHomeClientPanels() {
         clientRow(iconClash, 'Clash for Windows / macOS', oneImport) +
         clientRow(iconM, 'Clash Meta', oneImportMeta) +
         clientRow(iconV, 'v2rayN', copySub);
+
+    if (window.lucide) {
+        lucide.createIcons();
+    }
 }
 
 function switchHomeSubTab(tab, btn) {

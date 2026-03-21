@@ -9,6 +9,12 @@
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/static/favicon.svg">
     <title>Clash Hub</title>
+    <!-- 引入 Inter 字体 (使用国内 loli.net 镜像加速) -->
+    <link rel="preconnect" href="https://fonts.loli.net">
+    <link rel="preconnect" href="https://gstatic.loli.net" crossorigin>
+    <link href="https://fonts.loli.net/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- 引入 Lucide 图标库 (使用 jsdelivr fastly 国内加速节点) -->
+    <script src="https://fastly.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/static/css/theme.css">
     <link rel="stylesheet" href="/static/css/layout.css">
@@ -17,9 +23,9 @@
 
 <body>
 {% block body %}{% endblock %}
-    <!-- Prism：YAML 语法高亮（先于业务脚本，供 page-config mountYamlViewer 使用） -->
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-yaml.min.js"></script>
+    <!-- Prism：YAML 语法高亮（先于业务脚本，供 page-config mountYamlViewer 使用，已替换为国内静态资源 CDN） -->
+    <script src="https://fastly.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/prismjs@1.29.0/components/prism-yaml.min.js"></script>
     <!-- 脚本加载顺序：core → 各页逻辑 → app（路由与 token 引导）；非 module，全局函数供 HTML onclick 使用 -->
     <script src="/static/js/core.js"></script>
     <script src="/static/js/page-home.js"></script>
@@ -27,6 +33,10 @@
     <script src="/static/js/page-imports.js"></script>
     <script src="/static/js/page-config.js"></script>
     <script src="/static/js/app.js"></script>
+    <script>
+        // 初始化 Lucide 图标
+        lucide.createIcons();
+    </script>
 </body>
 
 </html>

@@ -1,11 +1,14 @@
-{# 节点管理：批次树 #importsTree、批量导入入口 #}
+{# 节点管理：标题单独一行；说明与「批量导入」同一行（左文右钮，窄屏自动换行） #}
                     <div id="page-imports" class="hidden">
-                        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div class="mb-4 space-y-3">
                             <h2 class="text-xl font-bold">节点管理</h2>
-                            <button type="button" class="btn btn-primary btn-sm"
-                                onclick="showBatchImportModal()">批量导入</button>
+                            <div
+                                class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-1 border-t border-slate-200/80 dark:border-slate-700/60">
+                                <p class="text-sm text-slate-500 dark:text-slate-400 flex-1 min-w-0">
+                                    同一批次下的节点会分组展示；聚合时节点名带「批次名_序号」前缀。与<strong>订阅管理</strong>中的链接相互独立。</p>
+                                <button type="button" class="btn btn-primary btn-sm shrink-0"
+                                    onclick="showBatchImportModal()">批量导入</button>
+                            </div>
                         </div>
-                        <p class="text-sm text-slate-400 mb-4">
-                            同一批次下的节点会分组展示；聚合时节点名带「批次名_序号」前缀。与<strong>订阅管理</strong>中的链接相互独立。</p>
                         <div id="importsTree"></div>
                     </div>
