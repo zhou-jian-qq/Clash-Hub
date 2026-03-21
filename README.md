@@ -2,150 +2,119 @@
 
 Clash 订阅聚合管理工具 —— 多源合一、智能重命名、流量监控、模板库。
 
-## 功能
+## 🎯 核心特性
 
-- **多源聚合**: 合并多个 **机场订阅**（`http(s)` 链接拉取）与 **节点导入**（分享链接或 Clash `proxies` YAML），统一进一份出站配置
-- **订阅管理**: 仅维护机场订阅 URL；支持前缀、刷新、流量与到期展示；记录 **添加时间 / 更新时间**
-- **节点导入**: 独立页面，**批量导入**会创建「批次」并在树下展示多个节点；支持单节点测速、编辑、删除；批次与节点均有 **添加 / 更新时间**
-- **旧数据迁移**: 首次启动若数据库中仍有「非 http(s)」的旧版订阅行，会自动迁入「节点导入」并删除原行（一次性）
-- **批量操作**: 订阅列表支持复选框与全选，可批量启用/禁用/删除；「批量检测」仅对勾选的订阅执行检测（不可用且原为启用时会自动禁用）
-- **智能重命名**: 为不同订阅添加自定义前缀, 避免节点名冲突
-- **流量监控**: 自动解析 `subscription-userinfo` 头, 聚合显示用量/总量/到期
-- **自动禁用**: 流量耗尽或订阅过期时自动禁用
-- **协议过滤**: 白名单 + 黑名单双向过滤 (ss, ssr, trojan, hysteria2...)
-- **关键词排除**: 过滤掉名称含指定关键词的节点
-- **配置页**: 模板（预设 + 自定义）与过滤设置同页展示，右侧实时 YAML / 可视化预览
-- **首页**: 流量概览 + 多客户端订阅导入（Clash / Clash Meta / Shadowrocket / v2rayN / V2rayNG）与「重置密钥」
-- **定时刷新**: 每 6 小时自动更新订阅流量数据
-- **订阅可用性检测**: 先校验拉取与解析；**仅当解析结果恰好 1 个节点** 时做延迟类探测：**`http` / `socks5` / `socks`** 使用内置 **httpx** 经代理访问测试 URL（默认 `https://www.gstatic.com/generate_204`）；**`ss` / `ssr` / `vmess` / `vless` / `trojan` / `hysteria2` / `hysteria`** 需在后台「设置」填写 **Mihomo** 可执行文件路径（或 `PATH` 中有 `mihomo` / 环境变量 `CLASH_HUB_MIHOMO`），由 Mihomo 临时进程做与 Clash 一致的 **URL 延迟**；若未配置或失败则退回 **TCP 建连**（仅表示端口可连）。多节点订阅只做拉取/解析。单条检测仅提示；批量检测会对不可用的已启用订阅自动禁用
-- **管理后台**: 深/浅主题 Web UI, 密码鉴权, 订阅 CRUD
-- **UUID 链接**: 聚合订阅通过 UUID 路径对外提供，可在后台轮换 UUID
+- **多源订阅聚合**：支持将多个机场订阅（`http(s)` 链接）与自定义节点（分享链接或 Clash `proxies` YAML）合并，统一输出为一份出站配置。
+- **智能化节点管理**：
+  - 独立页面管理导入节点，支持批量导入、单节点测速、编辑和删除。
+  - 智能重命名功能，为不同订阅添加自定义前缀，解决同名节点冲突。
+  - 支持关键字排除（黑名单）及多协议过滤（白名单 + 黑名单，支持 ss, ssr, trojan, hysteria2 等）。
+- **流量与状态监控**：
+  - 自动解析 `subscription-userinfo` 头部，直观显示各订阅的已用流量、总流量和到期时间。
+  - 后台定时刷新订阅与流量状态（默认每 6 小时）。
+  - **自动保护机制**：当流量耗尽或订阅过期时，自动禁用该订阅。
+- **高可用连通性检测**：
+  - 先校验节点拉取与解析情况，提供精准的节点可用性检测。
+  - **基础检测**：内置 `httpx`，对 `http` / `socks` 代理进行连通性测试。
+  - **高级检测**：支持调用本地 Mihomo 核心（需配置路径）进行真实 URL 延迟测试（适用于 `ss` / `vmess` / `trojan` 等复杂协议）。
+  - 支持批量检测，并对不可用的订阅自动实行禁用。
+- **灵活的配置模板**：支持丰富的预设模板，亦可通过管理后台编写和实时预览自定义 YAML 模板。
+- **安全与多客户端支持**：
+  - 提供深/浅色主题的现代化 Web 响应式后台，密码鉴权保护。
+  - 聚合链接通过动态 UUID 路由保护，随时支持一键「重置密钥」轮换 UUID 防止泄露。
+  - 首页提供多种客户端快捷导入入口（Clash / Clash Meta / Shadowrocket / v2rayN / V2rayNG 等）。
 
-## 快速部署
+---
 
-### Docker Compose (推荐)
+## 🚀 快速部署
+
+### 方式一：Docker Compose (推荐)
+
+使用 Docker 部署是最简单且环境隔离的方式。
 
 ```bash
 git clone <repo-url> && cd "Clash Hub"
 
-# 修改默认密码 (可选)
-# 编辑 docker-compose.yml 中的 ADMIN_PASSWORD
+# 可选：修改默认密码，编辑 docker-compose.yml 中的 ADMIN_PASSWORD
 
 docker compose up -d
 ```
 
-访问 `http://<你的IP>:8080` 进入管理后台, 默认密码: `admin888`
+启动后，访问 `http://<你的IP>:8080` 进入管理后台，默认密码为：`admin888`。
 
-### 本地开发
+### 方式二：本地直接运行 (Windows / Linux / macOS)
+
+**前置条件**：已安装 [Python 3.10+](https://www.python.org/downloads/)（Windows 安装时请勾选 *Add Python to PATH*）。
 
 ```bash
-cd app
-pip install -r ../requirements.txt
-uvicorn main:app --reload --port 8000
-```
+git clone <repo-url> && cd "Clash Hub"
 
-### Windows 本机运行 / 自测
-
-**前置条件**：已安装 [Python 3.10+](https://www.python.org/downloads/)（安装时勾选 *Add Python to PATH*）。
-
-**方式 A：直接跑 Python（适合改代码调试）**
-
-*路径请改成你本机仓库目录。*
-
-**A1 — PowerShell**
-
-```powershell
-cd "D:\zhou\Documents\git\Clash Hub"
-
+# 1. 创建虚拟环境
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
 
+# 2. 激活虚拟环境
+# Windows (PowerShell): .\.venv\Scripts\Activate.ps1
+# Windows (Git Bash): source .venv/Scripts/activate
+# Linux/macOS: source .venv/bin/activate
+
+# 3. 安装依赖
 pip install -r requirements.txt
-$env:ADMIN_PASSWORD = "你的密码"   # 可选，默认 admin888
 
+# 4. 运行服务
 cd app
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-> 若无法执行脚本：`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。
+浏览器打开：`http://127.0.0.1:8000` 进入管理后台。
 
-**A2 — Git Bash**
+---
 
-```bash
-cd "/d/zhou/Documents/git/Clash Hub"
-# 若盘符不同，把 /d/ 换成 /c/ 等；路径含空格时请保持引号
+## 📖 使用流程
 
-python -m venv .venv
-source .venv/Scripts/activate
+1. **登录后台**：访问 Web 后台并使用密码登录。
+2. **添加订阅源**：
+   - 在「订阅管理」中添加你的机场链接（仅支持 `http(s)` 链接），可配置节点前缀。
+   - 在「节点导入」中批量粘贴零散的节点分享链接或 Clash 节点配置。
+3. **选择模板与规则**：进入「配置页」，选择预设模板或创建自定义模板，按需设置关键字过滤和协议过滤。
+4. **获取链接**：点击「订阅链接」复制专属于你的 UUID 聚合 URL。
+5. **导入客户端**：将 URL 填入你的 Clash / Meta 等客户端中即可起飞。
 
-pip install -r requirements.txt
-export ADMIN_PASSWORD="你的密码"   # 可选，默认 admin888
+---
 
-cd app
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-> Windows 下可在 **Git Bash**、PowerShell 或 CMD 中执行；请确保当前目录是本项目下的 `app`（与 `main.py` 同级），避免多份拷贝时改到一份、跑到另一份。
-
-浏览器打开：**<http://127.0.0.1:8000>** 。管理后台里列表上的「添加/更新」等时间统一按 **东八区（Asia/Shanghai）** 显示。数据库（SQLite）里存的是 UTC 时刻；接口 JSON 中带 `+00:00` 偏移，避免浏览器把无时区 ISO 误解析成本地时间。  
-聚合订阅地址形如：`http://127.0.0.1:8000/sub/<UUID>`（首页展示完整链接；泄露后可「重置密钥」轮换 UUID）。
-
-管理员 API 补充：`POST /api/settings/reset-uuid` 轮换订阅 UUID；`GET /api/preview` 返回当前聚合 YAML 与节点/组统计（需登录）。节点导入相关：`GET/POST /api/import-batches`、`POST /api/import-batches/import`、`PUT /api/import-batches/{id}`（`name` 改名；`set_all_nodes_enabled` 批量启用/禁用该批次下全部节点）、`POST /api/import-batches/{id}/set-all-nodes-enabled`（与上一项等价，可选）、`DELETE /api/import-batches/{id}`、`PUT/DELETE /api/imported-nodes/{id}`、`POST /api/imported-nodes/{id}/check`（测速：对解析出的**第一个** proxy 做延迟探测，与机场订阅多节点行为不同）。
-
-**方式 B：Docker Desktop（与服务器一致）**
-
-安装 [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) 并启动后，在项目根目录（PowerShell / CMD / Git Bash 均可）：
-
-```bash
-cd "/d/zhou/Documents/git/Clash Hub"
-docker compose up --build
-```
-
-浏览器打开：**<http://127.0.0.1:8080**（`docker-compose.yml`> 里映射的是 `8080:8000`）。
-
-**简单自检**
-
-- 能打开登录页、用密码登录即服务正常。
-- 添加一条机场订阅或导入节点后，在浏览器或 Clash 里访问聚合 URL，应返回 YAML 文本。
-
-> 当前仓库未配置 `pytest` 等自动化测试；若需要可后续补充测试用例与 `pytest` 依赖。
-
-## 使用流程
-
-1. 登录管理后台
-2. 在「订阅管理」添加机场订阅（仅 `http(s)` 链接、可选前缀）；在「节点导入」批量粘贴分享链接或 Clash proxies（按批次管理）
-3. 选择预设模板，或创建多条命名自定义模板后点「选用」
-4. 配置过滤规则 (可选)
-5. 点击「订阅链接」复制聚合后的 URL
-6. 在 Clash 客户端中导入该 URL
-
-## 目录结构
-
-```
-├── app/
-│   ├── main.py              # FastAPI 主路由
-│   ├── database.py           # 数据库引擎
-│   ├── models.py             # SQLAlchemy 模型
-│   ├── migrations.py         # 启动时 schema/数据迁移
-│   ├── auth.py               # JWT 鉴权
-│   ├── aggregator.py         # 核心聚合引擎
-│   ├── preset_templates.py   # 预设模板库
-│   ├── scheduler.py          # 定时任务
-│   └── templates/
-│       └── index.html        # 管理后台 SPA
-├── data/                     # SQLite 数据持久化
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
-```
-
-## 环境变量
+## ⚙️ 环境变量与配置
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `ADMIN_PASSWORD` | 管理后台密码 | `admin888` |
-| `TZ` | 时区 | `Asia/Shanghai` |
+| `ADMIN_PASSWORD` | 管理后台登录密码 | `admin888` |
+| `TZ` | 系统时区设置 | `Asia/Shanghai` |
+| `CLASH_HUB_MIHOMO` | Mihomo 核心可执行文件路径（用于高级节点连通性测速）。也可在后台「设置」页面中直接配置。 | *(未配置)* |
 
-## 技术栈
+---
 
-Python 3.10+ / FastAPI / SQLAlchemy (async) / aiosqlite / httpx / APScheduler / Tailwind CSS
+## 📂 目录结构
+
+```text
+├── app/
+│   ├── main.py              # FastAPI 主路由
+│   ├── database.py          # 数据库引擎与连接
+│   ├── models.py            # SQLAlchemy 数据模型
+│   ├── migrations.py        # 数据库迁移脚本
+│   ├── auth.py              # JWT 鉴权模块
+│   ├── aggregator.py        # 核心聚合引擎
+│   ├── preset_templates.py  # 预设 YAML 模板库
+│   ├── proxy_latency.py     # 节点测速与连通性检测
+│   ├── proxy_uri.py         # 节点链接解析
+│   ├── scheduler.py         # 定时任务 (流量刷新)
+│   ├── static/              # 静态资源 (CSS, JS)
+│   └── templates/           # 页面模板 (HTML)
+├── data/                    # SQLite 数据库持久化目录 (包含应用数据)
+├── Dockerfile               # Docker 构建配置
+├── docker-compose.yml       # Docker 编排配置
+└── requirements.txt         # Python 依赖清单
+```
+
+---
+
+## 💻 技术栈
+
+基于 **Python 3.10+** 构建，核心使用 **FastAPI** / **SQLAlchemy (async)** / **aiosqlite** / **httpx** / **APScheduler**。前端采用原生 HTML + JavaScript 并结合 **Tailwind CSS** 进行响应式样式构建。
