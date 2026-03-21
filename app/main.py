@@ -42,6 +42,10 @@ from scheduler import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("main")
 
+# 客户端订阅展示名（与前端 SUB_CLIENT_NAME 保持一致）
+SUBSCRIPTION_PROFILE_NAME = "clash_hub"
+SUBSCRIPTION_PROFILE_FILENAME = f"{SUBSCRIPTION_PROFILE_NAME}.yaml"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1068,7 +1072,14 @@ async def get_aggregated_sub(sub_uuid: str, db: AsyncSession = Depends(get_db)):
 
     config_yaml, _meta = await _build_aggregated_config_yaml(db)
     if config_yaml.strip().startswith("# 无启用的机场订阅或导入节点"):
-        return PlainTextResponse(config_yaml, media_type="text/yaml")
+        return PlainTextResponse(
+            config_yaml,
+            media_type="text/yaml",
+            headers={
+                # 勿用 filename="..." 引号形式：部分客户端会把引号一并当作展示名（出现 \"...\"）
+                "Content-Disposition": f"attachment; filename={SUBSCRIPTION_PROFILE_FILENAME}",
+            },
+        )
 
     result = await db.execute(select(Subscription).where(Subscription.enabled == True))  # noqa: E712
     subs = [s.to_dict() for s in result.scalars().all()]
@@ -1080,7 +1091,10 @@ async def get_aggregated_sub(sub_uuid: str, db: AsyncSession = Depends(get_db)):
     return Response(
         content=config_yaml.encode("utf-8"),
         media_type="text/yaml; charset=utf-8",
-        headers={"Subscription-Userinfo": userinfo_hdr},
+        headers={
+            "Subscription-Userinfo": userinfo_hdr,
+            "Content-Disposition": f"attachment; filename={SUBSCRIPTION_PROFILE_FILENAME}",
+        },
     )
 
 

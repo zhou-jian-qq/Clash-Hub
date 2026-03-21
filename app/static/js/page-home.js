@@ -2,6 +2,13 @@
  * 首页：流量概览、订阅链接 Tab、各客户端一键导入与复制
  * 依赖：core.js（api、toast、formatBytes 等）
  */
+/** 与后端 SUBSCRIPTION_PROFILE_NAME 一致 */
+const SUB_CLIENT_NAME = 'clash_hub';
+
+function buildSubscriptionUrl(subUuid) {
+    return location.origin + '/sub/' + subUuid + '?name=' + encodeURIComponent(SUB_CLIENT_NAME);
+}
+
 async function loadHome() {
     try {
         const t = await api('/api/traffic');
@@ -27,14 +34,15 @@ async function loadHome() {
 <div class="text-sm text-slate-400 mt-3">最早到期: ${t.expire_date || '-'}</div>
       </div>`;
         const s = await api('/api/settings');
-        window._subBaseUrl = location.origin + '/sub/' + s.sub_uuid;
+        window._subBaseUrl = buildSubscriptionUrl(s.sub_uuid);
         renderHomeClientPanels();
     } catch (e) { toast(e.message, 'error'); }
 }
 
 function clashImportUrl() {
-    const u = encodeURIComponent(window._subBaseUrl || '');
-    return 'clash://install-config?url=' + u + '&name=' + encodeURIComponent('Clash Hub');
+    const subUrl = window._subBaseUrl || '';
+    const u = encodeURIComponent(subUrl);
+    return 'clash://install-config?url=' + u + '&name=' + encodeURIComponent(SUB_CLIENT_NAME);
 }
 
 function clashMetaImportUrl() {
@@ -110,7 +118,7 @@ async function resetSubUuid() {
     if (!confirm('重置后旧订阅链接将立即失效，客户端需重新导入。确定？')) return;
     try {
         const d = await api('/api/settings/reset-uuid', { method: 'POST', body: '{}' });
-        window._subBaseUrl = location.origin + '/sub/' + d.sub_uuid;
+        window._subBaseUrl = buildSubscriptionUrl(d.sub_uuid);
         toast('已重置密钥');
     } catch (e) { toast(e.message, 'error'); }
 }
