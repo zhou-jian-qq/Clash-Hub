@@ -1,5 +1,5 @@
+"""Clash Hub FastAPI 应用入口。"""
 import asyncio
-import json
 import logging
 import os
 import uuid as uuid_mod
@@ -10,22 +10,26 @@ import yaml
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import init_db, get_db
-from models import Subscription, Setting, CustomTemplate
+from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode
 from auth import verify_password, create_access_token, require_admin
 from aggregator import (
     fetch_subscription_content,
     parse_proxies,
+    extract_proxies_for_batch_import,
     build_config,
     aggregate_traffic,
     fetch_all_subscriptions,
     check_subscription_availability,
+    check_imported_proxy_yaml,
+    rename_proxies,
 )
 from preset_templates import PRESETS, get_preset_names
-from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri
+from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri, is_remote_subscription_url
+from migrations import ensure_subscription_updated_at_column, migrate_inline_subscriptions_to_import_nodes
 from scheduler import (
     start_scheduler,
     stop_scheduler,
@@ -41,14 +45,26 @@ logger = logging.getLogger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await ensure_subscription_updated_at_column()
     await _ensure_defaults()
     await _migrate_legacy_custom_template()
+    await migrate_inline_subscriptions_to_import_nodes()
     await start_scheduler()
     yield
     stop_scheduler()
 
 
 app = FastAPI(title="Clash Hub", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def _no_store_api_responses(request: Request, call_next):
+    """管理 API 勿被浏览器/CDN 缓存，否则 PUT 批量改 enabled 后 GET 仍可能拿到旧 JSON。"""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(_STATIC_DIR):
@@ -138,6 +154,67 @@ def _subscription_batch_prefix(base: str, index: int) -> str:
     return f"{base[:max_base]}{suffix}"
 
 
+def _require_airport_subscription_url(url: str) -> None:
+    if not is_remote_subscription_url((url or "").strip()):
+        raise HTTPException(
+            400,
+            "机场订阅仅支持 http(s) 订阅链接；单节点、分享链接或 Clash proxies 请使用「节点导入」页面",
+        )
+
+
+async def _collect_imported_proxies(db: AsyncSession) -> list[dict]:
+    """启用中的导入节点，按批次与顺序加前缀后合并为 proxy 列表。"""
+    r = await db.execute(
+        select(ImportedNode, ImportBatch)
+        .join(ImportBatch, ImportedNode.batch_id == ImportBatch.id)
+        .where(ImportedNode.enabled == True)  # noqa: E712
+        .order_by(ImportBatch.id, ImportedNode.sort_order)
+    )
+    rows = r.all()
+    per_batch_idx: dict[int, int] = {}
+    out: list[dict] = []
+    for node, batch in rows:
+        per_batch_idx[batch.id] = per_batch_idx.get(batch.id, 0) + 1
+        idx = per_batch_idx[batch.id]
+        ps = parse_proxies(node.proxy_yaml)
+        if not ps:
+            continue
+        prefix = _subscription_batch_prefix(batch.name, idx)
+        out.extend(rename_proxies(ps, prefix))
+    return out
+
+
+def _proxy_yaml_one_node(proxy: dict) -> str:
+    return yaml.dump(
+        {"proxies": [proxy]},
+        allow_unicode=True,
+        default_flow_style=False,
+        sort_keys=False,
+    )
+
+
+def _node_display_fields(proxy_yaml: str) -> dict:
+    ps = parse_proxies(proxy_yaml)
+    p0 = ps[0] if ps else {}
+    return {"display_name": str(p0.get("name", "")), "proxy_type": str(p0.get("type", ""))}
+
+
+async def _touch_batch_updated(batch_id: int, db: AsyncSession) -> None:
+    b = await db.get(ImportBatch, batch_id)
+    if b:
+        b.updated_at = datetime.now(timezone.utc)
+
+
+async def _set_all_imported_nodes_enabled(db: AsyncSession, batch_id: int, enabled: bool) -> int:
+    """将该批次下全部节点设为同一 enabled，返回更新条数。"""
+    r = await db.execute(select(ImportedNode).where(ImportedNode.batch_id == batch_id))
+    n = 0
+    for node in r.scalars().all():
+        node.enabled = enabled
+        n += 1
+    return n
+
+
 async def _hydrate_subscription_fetch(sub: Subscription, db: AsyncSession) -> None:
     """首次拉取并填充流量与节点数（失败时仅打日志，仍保留订阅）。"""
     timeout = int(await _get_setting(db, "fetch_timeout", "15"))
@@ -177,6 +254,7 @@ async def list_subscriptions(db: AsyncSession = Depends(get_db), _=Depends(requi
 @app.post("/api/subscriptions")
 async def create_subscription(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     body = await req.json()
+    _require_airport_subscription_url(body.get("url", ""))
     sub = Subscription(
         name=body["name"],
         url=body["url"],
@@ -193,69 +271,18 @@ async def create_subscription(req: Request, db: AsyncSession = Depends(get_db), 
     return sub.to_dict()
 
 
-@app.post("/api/subscriptions/batch-import")
-async def batch_import_subscriptions(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
-    """多行分享链接批量创建：同一次导入内订阅名称均为「名称」；节点前缀 = 名称_序号。"""
-    body = await req.json()
-    name_base = (body.get("name") or body.get("name_prefix") or "").strip()
-    text = body.get("text") or ""
-    if not name_base:
-        raise HTTPException(400, "名称不能为空")
-    display_name = name_base[:100]
-
-    raw_lines: list[tuple[int, str]] = []
-    for line_num, raw in enumerate(text.splitlines(), start=1):
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        raw_lines.append((line_num, line))
-
-    validated: list[tuple[int, str]] = []
-    skipped_lines: list[dict] = []
-    for line_num, line in raw_lines:
-        if not looks_like_proxy_uri_line(line) or not parse_single_proxy_uri(line):
-            skipped_lines.append({"line": line_num, "reason": "无法解析为分享链接"})
-            continue
-        validated.append((line_num, line))
-
-    if not validated:
-        raise HTTPException(400, "没有可导入的有效分享链接")
-
-    created_ids: list[int] = []
-    for idx, (_line_num, uri) in enumerate(validated, start=1):
-        sub = Subscription(
-            name=display_name,
-            url=uri,
-            prefix=_subscription_batch_prefix(name_base, idx),
-            enabled=True,
-            auto_disable=True,
-        )
-        await _hydrate_subscription_fetch(sub, db)
-        db.add(sub)
-        await db.flush()
-        created_ids.append(sub.id)
-
-    await db.commit()
-    return {
-        "ok": True,
-        "created": len(created_ids),
-        "skipped": len(skipped_lines),
-        "details": {
-            "created_ids": created_ids,
-            "skipped_lines": skipped_lines,
-        },
-    }
-
-
 @app.put("/api/subscriptions/{sub_id}")
 async def update_subscription(sub_id: int, req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     sub = await db.get(Subscription, sub_id)
     if not sub:
         raise HTTPException(404, "订阅不存在")
     body = await req.json()
+    if "url" in body:
+        _require_airport_subscription_url(body["url"])
     for field in ("name", "url", "prefix", "enabled", "auto_disable"):
         if field in body:
             setattr(sub, field, body[field])
+    sub.updated_at = datetime.now(timezone.utc)
     await db.commit()
     return sub.to_dict()
 
@@ -404,6 +431,274 @@ async def batch_check_subscriptions(req: Request, db: AsyncSession = Depends(get
 async def refresh_all(_=Depends(require_admin)):
     await refresh_subscriptions()
     return {"ok": True}
+
+
+# ═══════════════════ Import batches / imported nodes ═══════════════════
+
+
+@app.get("/api/import-batches")
+async def list_import_batches(db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    r = await db.execute(select(ImportBatch).order_by(ImportBatch.id.desc()))
+    batches = list(r.scalars().all())
+    out: list[dict] = []
+    for b in batches:
+        nr = await db.execute(
+            select(ImportedNode)
+            .where(ImportedNode.batch_id == b.id)
+            .order_by(ImportedNode.sort_order)
+        )
+        nodes: list[dict] = []
+        for n in nr.scalars().all():
+            d = n.to_dict()
+            d.update(_node_display_fields(n.proxy_yaml))
+            nodes.append(d)
+        bd = b.to_dict()
+        bd["nodes"] = nodes
+        out.append(bd)
+    return out
+
+
+@app.post("/api/import-batches")
+async def create_import_batch(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    body = await req.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "名称不能为空")
+    b = ImportBatch(name=name[:100])
+    db.add(b)
+    await db.commit()
+    await db.refresh(b)
+    return b.to_dict()
+
+
+@app.put("/api/import-batches/{batch_id}")
+async def update_import_batch(batch_id: int, req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    """更新批次名称，或批量启用/禁用该批次下全部节点（set_all_nodes_enabled）。"""
+    b = await db.get(ImportBatch, batch_id)
+    if not b:
+        raise HTTPException(404, "批次不存在")
+    body = await req.json()
+    if "name" in body:
+        n = (body.get("name") or "").strip()
+        if not n:
+            raise HTTPException(400, "名称不能为空")
+        b.name = n[:100]
+    if "set_all_nodes_enabled" in body:
+        await _set_all_imported_nodes_enabled(db, batch_id, bool(body.get("set_all_nodes_enabled")))
+    b.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(b)
+    return b.to_dict()
+
+
+@app.delete("/api/import-batches/{batch_id}")
+async def delete_import_batch(batch_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    b = await db.get(ImportBatch, batch_id)
+    if not b:
+        raise HTTPException(404, "批次不存在")
+    await db.delete(b)
+    await db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/import-batches/{batch_id}/set-all-nodes-enabled")
+async def set_all_import_batch_nodes_enabled(
+    batch_id: int,
+    req: Request,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """
+    批量启用/禁用某导入批次下的全部节点（聚合配置中仅 enabled 的节点会参与输出）。
+    body: { "enabled": true | false }
+    """
+    b = await db.get(ImportBatch, batch_id)
+    if not b:
+        raise HTTPException(404, "批次不存在")
+    body = await req.json()
+    enabled = bool(body.get("enabled", True))
+    cnt = await _set_all_imported_nodes_enabled(db, batch_id, enabled)
+    b.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"ok": True, "updated": cnt, "enabled": enabled}
+
+
+@app.post("/api/import-batches/import")
+async def import_batches_bulk_import(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    """多行分享链接或 Clash proxies YAML：创建一批次及多条节点。"""
+    body = await req.json()
+    name_base = (body.get("name") or body.get("name_prefix") or "").strip()
+    text = body.get("text") or ""
+    if not name_base:
+        raise HTTPException(400, "名称不能为空")
+    display_name = name_base[:100]
+
+    nodes: list[dict] = []
+    skipped_lines: list[dict] = []
+    mode = ""
+
+    yaml_proxies = extract_proxies_for_batch_import(text)
+    if yaml_proxies:
+        nodes = yaml_proxies
+        mode = "proxies_yaml"
+    else:
+        raw_lines: list[tuple[int, str]] = []
+        for line_num, raw in enumerate(text.splitlines(), start=1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            raw_lines.append((line_num, line))
+        for line_num, line in raw_lines:
+            if not looks_like_proxy_uri_line(line):
+                skipped_lines.append({"line": line_num, "reason": "无法解析为分享链接"})
+                continue
+            p = parse_single_proxy_uri(line)
+            if not p:
+                skipped_lines.append({"line": line_num, "reason": "无法解析为分享链接"})
+                continue
+            nodes.append(p)
+        mode = "uri_lines"
+
+    if not nodes:
+        raise HTTPException(400, "没有可导入的有效分享链接或 proxies 配置")
+
+    batch = ImportBatch(name=display_name)
+    db.add(batch)
+    await db.flush()
+
+    created_ids: list[int] = []
+    for idx, proxy in enumerate(nodes, start=1):
+        node = ImportedNode(
+            batch_id=batch.id,
+            sort_order=idx,
+            enabled=True,
+            proxy_yaml=_proxy_yaml_one_node(proxy),
+        )
+        db.add(node)
+        await db.flush()
+        created_ids.append(node.id)
+
+    batch.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(batch)
+    return {
+        "ok": True,
+        "batch_id": batch.id,
+        "created": len(created_ids),
+        "skipped": len(skipped_lines),
+        "details": {
+            "created_node_ids": created_ids,
+            "skipped_lines": skipped_lines,
+            "mode": mode,
+        },
+    }
+
+
+@app.post("/api/import-batches/{batch_id}/nodes")
+async def add_imported_node(batch_id: int, req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    b = await db.get(ImportBatch, batch_id)
+    if not b:
+        raise HTTPException(404, "批次不存在")
+    body = await req.json()
+    raw = (body.get("proxy_yaml") or body.get("text") or "").strip()
+    if not raw:
+        raise HTTPException(400, "内容不能为空")
+
+    ps = parse_proxies(raw)
+    if not ps:
+        line = raw.splitlines()[0].strip() if raw.splitlines() else ""
+        if line and looks_like_proxy_uri_line(line):
+            p = parse_single_proxy_uri(line)
+            if p:
+                ps = [p]
+    if not ps:
+        raise HTTPException(400, "无法解析为有效节点")
+
+    max_row = await db.execute(
+        select(func.coalesce(func.max(ImportedNode.sort_order), 0)).where(ImportedNode.batch_id == batch_id)
+    )
+    max_order = int(max_row.scalar_one() or 0)
+
+    node = ImportedNode(
+        batch_id=batch_id,
+        sort_order=max_order + 1,
+        enabled=True,
+        proxy_yaml=_proxy_yaml_one_node(ps[0]),
+    )
+    db.add(node)
+    b.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(node)
+    d = node.to_dict()
+    d.update(_node_display_fields(node.proxy_yaml))
+    return d
+
+
+@app.put("/api/imported-nodes/{node_id}")
+async def update_imported_node(node_id: int, req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    n = await db.get(ImportedNode, node_id)
+    if not n:
+        raise HTTPException(404, "节点不存在")
+    body = await req.json()
+    if "proxy_yaml" in body:
+        raw = (body.get("proxy_yaml") or "").strip()
+        if not raw:
+            raise HTTPException(400, "proxy_yaml 不能为空")
+        ps = parse_proxies(raw)
+        if not ps:
+            raise HTTPException(400, "无法解析节点")
+        n.proxy_yaml = _proxy_yaml_one_node(ps[0])
+    if "enabled" in body:
+        n.enabled = bool(body["enabled"])
+    if "sort_order" in body:
+        n.sort_order = int(body["sort_order"])
+    n.updated_at = datetime.now(timezone.utc)
+    batch = await db.get(ImportBatch, n.batch_id)
+    if batch:
+        batch.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(n)
+    d = n.to_dict()
+    d.update(_node_display_fields(n.proxy_yaml))
+    return d
+
+
+@app.delete("/api/imported-nodes/{node_id}")
+async def delete_imported_node(node_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    n = await db.get(ImportedNode, node_id)
+    if not n:
+        raise HTTPException(404, "节点不存在")
+    bid = n.batch_id
+    await db.delete(n)
+    await _touch_batch_updated(bid, db)
+    await db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/imported-nodes/{node_id}/check")
+async def check_imported_node(node_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    n = await db.get(ImportedNode, node_id)
+    if not n:
+        raise HTTPException(404, "节点不存在")
+    batch = await db.get(ImportBatch, n.batch_id)
+    if not batch:
+        raise HTTPException(404, "批次不存在")
+    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    mihomo_path = await _get_setting(db, "mihomo_path", "")
+    prefix = _subscription_batch_prefix(batch.name, n.sort_order)
+    # 使用专用测速逻辑：始终对单节点 YAML 的第一条 proxy 探测，见 aggregator.check_imported_proxy_yaml
+    r = await check_imported_proxy_yaml(n.proxy_yaml, prefix, timeout, mihomo_path=mihomo_path)
+    return {
+        "available": r["ok"],
+        "node_count": r["node_count"],
+        "message": r["message"],
+        "error": r.get("error"),
+        "latency_ms": r.get("latency_ms"),
+        "tcp_tested": r.get("tcp_tested", False),
+        "probe_kind": r.get("probe_kind", "none"),
+        "display_name": _node_display_fields(n.proxy_yaml)["display_name"],
+        "enabled": n.enabled,
+    }
 
 
 # ═══════════════════ Settings ═══════════════════
@@ -568,12 +863,14 @@ async def get_traffic(db: AsyncSession = Depends(get_db), _=Depends(require_admi
 async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
     """
     生成与 /sub 一致的 YAML，并返回统计信息（供 /api/preview）。
+    合并：启用的机场订阅 + 启用的导入节点。
     """
     result = await db.execute(select(Subscription).where(Subscription.enabled == True))  # noqa: E712
     subs = [s.to_dict() for s in result.scalars().all()]
+    imported_proxies = await _collect_imported_proxies(db)
 
-    if not subs:
-        return "# 无启用的订阅源\n", {
+    if not subs and not imported_proxies:
+        return "# 无启用的机场订阅或导入节点\n", {
             "proxy_count": 0,
             "group_count": 0,
             "rule_provider_count": 0,
@@ -615,10 +912,11 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
     elif active_tpl in PRESETS:
         template_name = active_tpl
 
-    fetch_results = await fetch_all_subscriptions(subs, timeout)
-    all_proxies = []
+    fetch_results = await fetch_all_subscriptions(subs, timeout) if subs else []
+    all_proxies: list[dict] = []
     for fr in fetch_results:
         all_proxies.extend(fr["proxies"])
+    all_proxies.extend(imported_proxies)
 
     config_yaml = build_config(
         proxies=all_proxies,
@@ -664,7 +962,7 @@ async def get_aggregated_sub(sub_uuid: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(403, "无效的订阅链接")
 
     config_yaml, _meta = await _build_aggregated_config_yaml(db)
-    if config_yaml.strip().startswith("# 无启用的订阅源"):
+    if config_yaml.strip().startswith("# 无启用的机场订阅或导入节点"):
         return PlainTextResponse(config_yaml, media_type="text/yaml")
 
     result = await db.execute(select(Subscription).where(Subscription.enabled == True))  # noqa: E712

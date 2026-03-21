@@ -26,7 +26,10 @@ logger = logging.getLogger("proxy_latency")
 DEFAULT_URL_TEST = "https://www.gstatic.com/generate_204"
 
 _TYPES_HTTPX = frozenset({"http", "socks5", "socks"})
-_TYPES_MIHOMO_CORE = frozenset({"ss", "ssr", "vmess", "vless", "trojan", "hysteria2", "hysteria"})
+# Mihomo 核心可完整出站并测 delay 的协议（与 httpx 直连接近但走内核）
+_TYPES_MIHOMO_CORE = frozenset(
+    {"ss", "ssr", "vmess", "vless", "trojan", "hysteria2", "hysteria", "tuic"}
+)
 
 
 def resolve_mihomo_executable(path: str) -> str | None:

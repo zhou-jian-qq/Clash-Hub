@@ -23,6 +23,17 @@ from proxy_latency import probe_single_proxy
 from proxy_uri import is_remote_subscription_url, looks_like_proxy_uri_line, parse_single_proxy_uri
 logger = logging.getLogger("aggregator")
 
+
+def _normalize_pasted_yaml_whitespace(s: str) -> str:
+    """将 NBSP 等 Unicode 空白替换为普通空格。从网页/IM 粘贴的缩进常用 NBSP，PyYAML 会报 ScannerError。"""
+    if not s:
+        return s
+    s = s.replace("\ufeff", "")
+    for ch in ("\u00a0", "\u202f", "\u2007", "\u3000"):
+        s = s.replace(ch, " ")
+    return s
+
+
 DEFAULT_EXCLUDE_KEYWORDS = ["剩余流量", "官网", "重置", "套餐到期", "建议"]
 SUPPORTED_TYPES = {"ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2",
                    "tuic", "wireguard", "snell", "socks5", "http"}
@@ -61,14 +72,27 @@ def try_decode_base64(text: str) -> str | None:
 
 # ─── 解析订阅内容为 proxies 列表 ───
 def parse_proxies(content: str) -> list[dict]:
-    content = content.strip()
+    content = _normalize_pasted_yaml_whitespace(content.strip())
     if not content:
         return []
 
     try:
         data = yaml.safe_load(content)
         if isinstance(data, dict) and "proxies" in data:
-            return [p for p in data["proxies"] if isinstance(p, dict)]
+            pl = data.get("proxies")
+            if isinstance(pl, list):
+                return [p for p in pl if isinstance(p, dict)]
+        if isinstance(data, list):
+            out = [p for p in data if isinstance(p, dict) and "name" in p and "type" in p]
+            if out:
+                return out
+        if (
+            isinstance(data, dict)
+            and "proxies" not in data
+            and "name" in data
+            and "type" in data
+        ):
+            return [data]
     except yaml.YAMLError:
         pass
 
@@ -93,6 +117,39 @@ def parse_proxies(content: str) -> list[dict]:
         return _parse_uri_lines(decoded)
 
     return _parse_uri_lines(content)
+
+
+def extract_proxies_for_batch_import(text: str) -> list[dict] | None:
+    """
+    整段文本是否为 Clash 节点 YAML（proxies 列表 / 根列表 / 单节点 dict）。
+    若可解析出至少一个含 name+type 的节点则返回列表，否则返回 None（由调用方回退为按行分享链接）。
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    text = _normalize_pasted_yaml_whitespace(raw)
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None
+    if data is None:
+        return None
+    if isinstance(data, dict) and "proxies" in data:
+        pl = data.get("proxies")
+        if not isinstance(pl, list):
+            return None
+        out = [
+            p
+            for p in pl
+            if isinstance(p, dict) and "name" in p and "type" in p
+        ]
+        return out if out else None
+    if isinstance(data, list):
+        out = [p for p in data if isinstance(p, dict) and "name" in p and "type" in p]
+        return out if out else None
+    if isinstance(data, dict) and "name" in data and "type" in data:
+        return [data]
+    return None
 
 
 def _parse_uri_lines(text: str) -> list[dict]:
@@ -221,6 +278,79 @@ async def measure_tcp_latency(host: str, port: int, timeout: float = 5.0) -> tup
                 await writer.wait_closed()
             except Exception:
                 pass
+
+
+async def check_imported_proxy_yaml(
+    proxy_yaml: str,
+    prefix: str,
+    timeout: int = 15,
+    mihomo_path: str = "",
+) -> dict:
+    """
+    「节点导入」页单节点测速专用。
+
+    与 check_subscription_availability 的区别：
+    - 入参是已落库的 proxy_yaml 片段，不是远程订阅 URL。
+    - 始终只对解析出的第一个 proxy 做 probe_single_proxy；若 YAML 误含多条，仍测第一条并
+      在 message 中注明，避免走「多节点仅解析不测延迟」分支导致 latency 恒为空。
+    """
+    base_extra = {"latency_ms": None, "tcp_tested": False, "probe_kind": "none"}
+    try:
+        proxies = parse_proxies(proxy_yaml or "")
+        if not proxies:
+            return {
+                "ok": False,
+                "node_count": 0,
+                "message": "未解析到任何节点",
+                "error": None,
+                **base_extra,
+            }
+        n = len(proxies)
+        suffix = f"（YAML 解析到 {n} 个节点，仅对第一个测速）" if n > 1 else ""
+        p0 = rename_proxies([proxies[0]], prefix or "")[0]
+        probe_budget = min(25.0, float(timeout))
+        ok_p, ms, perr, kind = await probe_single_proxy(p0, probe_budget, mihomo_path)
+        tested = kind != "none"
+        if not ok_p:
+            return {
+                "ok": False,
+                "node_count": n,
+                "message": f"探测未通过：{perr or '未知错误'}{suffix}",
+                "error": perr,
+                "latency_ms": None,
+                "tcp_tested": tested,
+                "probe_kind": kind,
+            }
+        if kind == "httpx":
+            msg = f"可用；经代理访问测试 URL 延迟约 {ms:.0f} ms（http/socks）{suffix}"
+        elif kind == "mihomo":
+            msg = f"可用；Mihomo URL 测试延迟约 {ms:.0f} ms（协议栈与 Clash 一致）{suffix}"
+        elif kind == "tcp-fallback":
+            msg = (
+                f"可用；TCP 建连约 {ms:.0f} ms（兜底：未通过 URL 级代理测试，"
+                f"多为未配置 Mihomo 或上层代理检测失败）{suffix}"
+            )
+        else:
+            msg = f"可用{suffix}"
+        return {
+            "ok": True,
+            "node_count": n,
+            "message": msg,
+            "error": None,
+            "latency_ms": ms,
+            "tcp_tested": tested,
+            "probe_kind": kind,
+        }
+    except Exception as e:
+        err = str(e)
+        logger.warning("导入节点测速失败: %s", err)
+        return {
+            "ok": False,
+            "node_count": 0,
+            "message": f"不可用：{err}",
+            "error": err,
+            **base_extra,
+        }
 
 
 async def check_subscription_availability(url: str, prefix: str, timeout: int = 15, mihomo_path: str = "") -> dict:

@@ -4,8 +4,10 @@ Clash 订阅聚合管理工具 —— 多源合一、智能重命名、流量监
 
 ## 功能
 
-- **多源聚合**: 合并多个 Clash 订阅链接, 支持 YAML 和 Base64 格式
-- **批量导入**: 订阅管理支持多行粘贴分享链接（ss / ssr / vmess / vless / trojan / hysteria2 / hy2 等）。同一次导入内每条订阅名称相同；聚合节点前缀为「名称_序号」以区分
+- **多源聚合**: 合并多个 **机场订阅**（`http(s)` 链接拉取）与 **节点导入**（分享链接或 Clash `proxies` YAML），统一进一份出站配置
+- **订阅管理**: 仅维护机场订阅 URL；支持前缀、刷新、流量与到期展示；记录 **添加时间 / 更新时间**
+- **节点导入**: 独立页面，**批量导入**会创建「批次」并在树下展示多个节点；支持单节点测速、编辑、删除；批次与节点均有 **添加 / 更新时间**
+- **旧数据迁移**: 首次启动若数据库中仍有「非 http(s)」的旧版订阅行，会自动迁入「节点导入」并删除原行（一次性）
 - **批量操作**: 订阅列表支持复选框与全选，可批量启用/禁用/删除；「批量检测」仅对勾选的订阅执行检测（不可用且原为启用时会自动禁用）
 - **智能重命名**: 为不同订阅添加自定义前缀, 避免节点名冲突
 - **流量监控**: 自动解析 `subscription-userinfo` 头, 聚合显示用量/总量/到期
@@ -83,10 +85,12 @@ cd app
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-浏览器打开：**<http://127.0.0.1:8000>** 。  
+> Windows 下可在 **Git Bash**、PowerShell 或 CMD 中执行；请确保当前目录是本项目下的 `app`（与 `main.py` 同级），避免多份拷贝时改到一份、跑到另一份。
+
+浏览器打开：**<http://127.0.0.1:8000>** 。管理后台里列表上的「添加/更新」等时间统一按 **东八区（Asia/Shanghai）** 显示。数据库（SQLite）里存的是 UTC 时刻；接口 JSON 中带 `+00:00` 偏移，避免浏览器把无时区 ISO 误解析成本地时间。  
 聚合订阅地址形如：`http://127.0.0.1:8000/sub/<UUID>`（首页展示完整链接；泄露后可「重置密钥」轮换 UUID）。
 
-管理员 API 补充：`POST /api/settings/reset-uuid` 轮换订阅 UUID；`GET /api/preview` 返回当前聚合 YAML 与节点/组统计（需登录）。
+管理员 API 补充：`POST /api/settings/reset-uuid` 轮换订阅 UUID；`GET /api/preview` 返回当前聚合 YAML 与节点/组统计（需登录）。节点导入相关：`GET/POST /api/import-batches`、`POST /api/import-batches/import`、`PUT /api/import-batches/{id}`（`name` 改名；`set_all_nodes_enabled` 批量启用/禁用该批次下全部节点）、`POST /api/import-batches/{id}/set-all-nodes-enabled`（与上一项等价，可选）、`DELETE /api/import-batches/{id}`、`PUT/DELETE /api/imported-nodes/{id}`、`POST /api/imported-nodes/{id}/check`（测速：对解析出的**第一个** proxy 做延迟探测，与机场订阅多节点行为不同）。
 
 **方式 B：Docker Desktop（与服务器一致）**
 
@@ -102,14 +106,14 @@ docker compose up --build
 **简单自检**
 
 - 能打开登录页、用密码登录即服务正常。
-- 添加一条订阅后，在浏览器或 Clash 里访问聚合 URL，应返回 YAML 文本。
+- 添加一条机场订阅或导入节点后，在浏览器或 Clash 里访问聚合 URL，应返回 YAML 文本。
 
 > 当前仓库未配置 `pytest` 等自动化测试；若需要可后续补充测试用例与 `pytest` 依赖。
 
 ## 使用流程
 
 1. 登录管理后台
-2. 添加订阅 (填写名称、URL、可选前缀)
+2. 在「订阅管理」添加机场订阅（仅 `http(s)` 链接、可选前缀）；在「节点导入」批量粘贴分享链接或 Clash proxies（按批次管理）
 3. 选择预设模板，或创建多条命名自定义模板后点「选用」
 4. 配置过滤规则 (可选)
 5. 点击「订阅链接」复制聚合后的 URL
@@ -122,6 +126,7 @@ docker compose up --build
 │   ├── main.py              # FastAPI 主路由
 │   ├── database.py           # 数据库引擎
 │   ├── models.py             # SQLAlchemy 模型
+│   ├── migrations.py         # 启动时 schema/数据迁移
 │   ├── auth.py               # JWT 鉴权
 │   ├── aggregator.py         # 核心聚合引擎
 │   ├── preset_templates.py   # 预设模板库
