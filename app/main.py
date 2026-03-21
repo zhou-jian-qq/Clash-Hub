@@ -91,6 +91,14 @@ async def _ensure_defaults():
             "auto_disable_on_expiry": "true",
             "auto_disable_on_empty": "true",
             "refresh_interval_hours": "6",
+            "module_base_override_yaml": "",
+            "module_tun_override_yaml": "",
+            "module_dns_override_yaml": "",
+            "corp_dns_enabled": "false",
+            "corp_dns_servers": "",
+            "corp_domain_suffixes": "",
+            "corp_ipcidrs": "",
+            "rules_tail": "",
         }
         for k, v in defaults.items():
             existing = await session.get(Setting, k)
@@ -138,15 +146,71 @@ async def _set_setting(db: AsyncSession, key: str, value: str):
 async def _apply_settings_body(db: AsyncSession, body: dict) -> bool:
     """根据请求体写入 settings。返回是否包含 refresh_interval_hours（需重载定时任务）。"""
     touch_refresh = "refresh_interval_hours" in body
+    yaml_override_keys = {
+        "module_base_override_yaml",
+        "module_tun_override_yaml",
+        "module_dns_override_yaml",
+    }
+    bool_keys = {
+        "auto_disable_on_expiry",
+        "auto_disable_on_empty",
+        "corp_dns_enabled",
+    }
     for k, v in body.items():
         if k == "sub_uuid":
             continue
         if k == "refresh_interval_hours":
             v = str(parse_refresh_interval_hours(str(v)))
+        elif k in yaml_override_keys:
+            txt = "" if v is None else str(v)
+            _parse_yaml_mapping_or_empty(k, txt)
+            v = txt
+        elif k in bool_keys:
+            v = _normalize_bool_text(v)
         else:
             v = str(v)
         await _set_setting(db, k, v)
     return touch_refresh
+
+
+def _normalize_bool_text(v) -> str:
+    s = str(v).strip().lower()
+    return "true" if s in {"1", "true", "yes", "on"} else "false"
+
+
+def _parse_bool_text(v: str) -> bool:
+    return str(v).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_yaml_mapping_or_empty(key: str, text: str) -> dict:
+    raw = (text or "").strip()
+    if not raw:
+        return {}
+    try:
+        data = yaml.safe_load(raw)
+    except yaml.YAMLError as e:
+        raise ValueError(f"{key} YAML 解析失败: {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError(f"{key} 必须是 YAML 映射（对象）")
+    return data
+
+
+def _split_csv_or_lines(text: str) -> list[str]:
+    raw = (text or "").replace("\r", "\n")
+    out: list[str] = []
+    for ln in raw.split("\n"):
+        for item in ln.split(","):
+            s = item.strip()
+            if s:
+                out.append(s)
+    return out
+
+
+def _parse_rules_tail(text: str) -> list[str]:
+    raw = (text or "").strip()
+    if not raw:
+        return []
+    return [ln.strip() for ln in raw.replace("\r", "\n").split("\n") if ln.strip()]
 
 
 def _subscription_batch_prefix(base: str, index: int) -> str:
@@ -717,7 +781,10 @@ async def get_settings(db: AsyncSession = Depends(get_db), _=Depends(require_adm
 @app.put("/api/settings")
 async def update_settings(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     body = await req.json()
-    touch_refresh = await _apply_settings_body(db, body)
+    try:
+        touch_refresh = await _apply_settings_body(db, body)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     await db.commit()
     if touch_refresh:
         await reschedule_refresh_job()
@@ -888,10 +955,32 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
     exclude_raw = await _get_setting(db, "exclude_types", "")
     exclude_kw_raw = await _get_setting(db, "exclude_keywords", "剩余流量,官网,重置,套餐到期,建议")
     timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    module_base_override_yaml = await _get_setting(db, "module_base_override_yaml", "")
+    module_tun_override_yaml = await _get_setting(db, "module_tun_override_yaml", "")
+    module_dns_override_yaml = await _get_setting(db, "module_dns_override_yaml", "")
+    corp_dns_enabled_raw = await _get_setting(db, "corp_dns_enabled", "false")
+    corp_dns_servers_raw = await _get_setting(db, "corp_dns_servers", "")
+    corp_domain_suffixes_raw = await _get_setting(db, "corp_domain_suffixes", "")
+    corp_ipcidrs_raw = await _get_setting(db, "corp_ipcidrs", "")
+    rules_tail_raw = await _get_setting(db, "rules_tail", "")
 
     include_types = [t.strip() for t in include_raw.split(",") if t.strip()] or None
     exclude_types = [t.strip() for t in exclude_raw.split(",") if t.strip()] or None
     exclude_keywords = [k.strip() for k in exclude_kw_raw.split(",") if k.strip()]
+    try:
+        module_base_override = _parse_yaml_mapping_or_empty("module_base_override_yaml", module_base_override_yaml)
+        module_tun_override = _parse_yaml_mapping_or_empty("module_tun_override_yaml", module_tun_override_yaml)
+        module_dns_override = _parse_yaml_mapping_or_empty("module_dns_override_yaml", module_dns_override_yaml)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+    corp_dns = {
+        "enabled": _parse_bool_text(corp_dns_enabled_raw),
+        "servers": _split_csv_or_lines(corp_dns_servers_raw),
+        "domains": _split_csv_or_lines(corp_domain_suffixes_raw),
+        "ipcidrs": _split_csv_or_lines(corp_ipcidrs_raw),
+    }
+    rules_tail = _parse_rules_tail(rules_tail_raw)
 
     custom_template = None
     template_name = "标准版"
@@ -929,6 +1018,11 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
         include_types=include_types,
         exclude_types=exclude_types,
         exclude_keywords=exclude_keywords,
+        module_base_override=module_base_override,
+        module_tun_override=module_tun_override,
+        module_dns_override=module_dns_override,
+        corp_dns=corp_dns,
+        rules_tail=rules_tail,
     )
 
     try:
@@ -955,6 +1049,13 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
         "empty_subscriptions": False,
         "proxy_names": proxy_names,
         "group_names": group_names,
+        "module_flags": {
+            "base_override": bool(module_base_override),
+            "tun_override": bool(module_tun_override),
+            "dns_override": bool(module_dns_override),
+            "corp_dns_enabled": bool(corp_dns.get("enabled")),
+            "rules_tail_count": len(rules_tail),
+        },
     }
     return config_yaml, meta
 

@@ -55,6 +55,45 @@
                                 <button type="button" class="btn btn-primary"
                                     onclick="saveSystemSettings()">保存系统设置</button>
                             </div>
+                            <div class="card space-y-4">
+                                <h3 class="text-lg font-bold">模块化配置覆盖</h3>
+                                <p class="text-sm text-slate-400">按模块覆盖最终 YAML，留空即使用内置默认。格式需为 YAML 对象。</p>
+                                <div><label class="text-sm text-slate-400">基础模块覆盖（base）</label>
+                                    <textarea id="s_base_yaml" rows="5" class="font-mono text-sm"
+                                        placeholder="例如：&#10;mixed-port: 7890&#10;allow-lan: true&#10;mode: rule"></textarea>
+                                </div>
+                                <div><label class="text-sm text-slate-400">TUN 模块覆盖（tun）</label>
+                                    <textarea id="s_tun_yaml" rows="5" class="font-mono text-sm"
+                                        placeholder="例如：&#10;enable: true&#10;stack: system&#10;auto-route: true&#10;dns-hijack:&#10;  - any:53"></textarea>
+                                </div>
+                                <div><label class="text-sm text-slate-400">DNS 模块覆盖（dns）</label>
+                                    <textarea id="s_dns_yaml" rows="7" class="font-mono text-sm"
+                                        placeholder="例如：&#10;listen: 0.0.0.0:53&#10;enhanced-mode: fake-ip&#10;fake-ip-filter:&#10;  - '*.lan'"></textarea>
+                                </div>
+                                <div class="pt-1 border-t border-slate-700"></div>
+                                <div class="flex items-center">
+                                    <label class="form-check"><input type="checkbox"
+                                            id="s_corpDnsEnabled"><span>启用企业内网 DNS 优化（ATrust 场景）</span></label>
+                                </div>
+                                <div><label class="text-sm text-slate-400">企业 DNS 服务器（逗号或换行分隔）</label>
+                                    <textarea id="s_corpDnsServers" rows="3" class="font-mono text-sm"
+                                        placeholder="例如：&#10;10.10.0.53&#10;10.10.0.54"></textarea>
+                                </div>
+                                <div><label class="text-sm text-slate-400">企业域名后缀（逗号或换行分隔）</label>
+                                    <textarea id="s_corpDomains" rows="3" class="font-mono text-sm"
+                                        placeholder="例如：&#10;.company.com&#10;corp.local"></textarea>
+                                </div>
+                                <div><label class="text-sm text-slate-400">企业内网网段 CIDR（逗号或换行分隔）</label>
+                                    <textarea id="s_corpCidrs" rows="3" class="font-mono text-sm"
+                                        placeholder="例如：&#10;10.0.0.0/8&#10;172.16.0.0/12"></textarea>
+                                </div>
+                                <div><label class="text-sm text-slate-400">规则尾追加（每行一条 Clash 规则）</label>
+                                    <textarea id="s_rules_tail" rows="4" class="font-mono text-sm"
+                                        placeholder="例如：&#10;IP-CIDR,10.0.0.0/8,DIRECT,no-resolve&#10;DOMAIN-SUFFIX,company.com,DIRECT"></textarea>
+                                </div>
+                                <button type="button" class="btn btn-primary"
+                                    onclick="saveModuleSettings()">保存模块配置</button>
+                            </div>
                         </div>
                         <div
                             class="flex-1 min-w-0 min-h-0 flex flex-col card p-0 overflow-hidden min-h-[min(55vh,520px)] xl:flex-1 xl:min-w-0 xl:max-h-[calc(100vh-8rem)] xl:self-stretch">

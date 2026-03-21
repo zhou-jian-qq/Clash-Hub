@@ -458,6 +458,106 @@ async def fetch_all_subscriptions(subscriptions: list[dict], timeout: int = 15):
 
 
 # ─── 模板引擎: 组装完整 Clash 配置 ───
+def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """递归合并 dict；override 的同名键覆盖 base。"""
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _merge_dict(base[k], v)
+        else:
+            base[k] = copy.deepcopy(v)
+    return base
+
+
+def _split_csv_or_lines(text: Any) -> list[str]:
+    if text is None:
+        return []
+    if isinstance(text, list):
+        return [str(x).strip() for x in text if str(x).strip()]
+    raw = str(text)
+    if not raw.strip():
+        return []
+    raw = raw.replace("\r", "\n")
+    out: list[str] = []
+    for line in raw.split("\n"):
+        for item in line.split(","):
+            s = item.strip()
+            if s:
+                out.append(s)
+    return out
+
+
+def _dedup_keep_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+
+def _ensure_corp_domain_pattern(domain: str) -> str:
+    s = domain.strip()
+    if not s:
+        return s
+    if s.startswith("+.") or s.startswith("*."):
+        return s
+    if s.startswith("."):
+        return f"+{s}"
+    if "." in s:
+        return f"+.{s}"
+    return s
+
+
+def _apply_corp_dns_override(config: dict[str, Any], corp_dns: dict[str, Any] | None) -> None:
+    """
+    企业内网 DNS 覆盖：
+    - 内网域名走 nameserver-policy -> 企业 DNS
+    - 内网域名加入 fake-ip-filter，避免假 IP 导致 VPN 冲突
+    - 可选将内网网段补到 fallback-filter.ipcidr
+    """
+    if not corp_dns or not corp_dns.get("enabled"):
+        return
+
+    dns = config.get("dns")
+    if not isinstance(dns, dict):
+        dns = {}
+        config["dns"] = dns
+
+    servers = _split_csv_or_lines(corp_dns.get("servers"))
+    domains = [_ensure_corp_domain_pattern(x) for x in _split_csv_or_lines(corp_dns.get("domains"))]
+    domains = [x for x in domains if x]
+    ipcidrs = _split_csv_or_lines(corp_dns.get("ipcidrs"))
+
+    if servers and domains:
+        nsp = dns.get("nameserver-policy")
+        if not isinstance(nsp, dict):
+            nsp = {}
+            dns["nameserver-policy"] = nsp
+        for d in domains:
+            nsp[d] = list(servers)
+
+    if domains:
+        ff = dns.get("fake-ip-filter")
+        if not isinstance(ff, list):
+            ff = []
+            dns["fake-ip-filter"] = ff
+        ff.extend(domains)
+        dns["fake-ip-filter"] = _dedup_keep_order([str(x) for x in ff if str(x).strip()])
+
+    if ipcidrs:
+        fbf = dns.get("fallback-filter")
+        if not isinstance(fbf, dict):
+            fbf = {}
+            dns["fallback-filter"] = fbf
+        cur = fbf.get("ipcidr")
+        if not isinstance(cur, list):
+            cur = []
+        cur.extend(ipcidrs)
+        fbf["ipcidr"] = _dedup_keep_order([str(x) for x in cur if str(x).strip()])
+
+
 def build_config(
     proxies: list[dict],
     template_name: str = "标准版",
@@ -465,13 +565,18 @@ def build_config(
     include_types: list[str] | None = None,
     exclude_types: list[str] | None = None,
     exclude_keywords: list[str] | None = None,
+    module_base_override: dict[str, Any] | None = None,
+    module_tun_override: dict[str, Any] | None = None,
+    module_dns_override: dict[str, Any] | None = None,
+    corp_dns: dict[str, Any] | None = None,
+    rules_tail: list[str] | None = None,
 ) -> str:
     """
     组装最终 Clash 配置文件:
-    1. 使用 BASE_CONFIG 作为基础
-    2. 过滤节点
-    3. 注入 proxies 和 proxy-groups
-    4. 注入 rule-providers 和 rules
+    1. base 模块：BASE_CONFIG + base override
+    2. tun 模块：tun override
+    3. dns 模块：dns override + 企业 DNS 覆盖
+    4. template/runtime/rulesTail 模块注入
     返回 YAML 字符串
     """
     filtered = filter_proxies(proxies, include_types, exclude_types, exclude_keywords)
@@ -494,6 +599,28 @@ def build_config(
         tpl = PRESETS.get(template_name, PRESETS["标准版"])
 
     config = copy.deepcopy(BASE_CONFIG)
+    if module_base_override:
+        _merge_dict(config, module_base_override)
+
+    if module_tun_override:
+        cur_tun = config.get("tun")
+        if isinstance(cur_tun, dict):
+            merged_tun = copy.deepcopy(cur_tun)
+            _merge_dict(merged_tun, module_tun_override)
+            config["tun"] = merged_tun
+        else:
+            config["tun"] = copy.deepcopy(module_tun_override)
+
+    if module_dns_override:
+        cur_dns = config.get("dns")
+        if isinstance(cur_dns, dict):
+            merged_dns = copy.deepcopy(cur_dns)
+            _merge_dict(merged_dns, module_dns_override)
+            config["dns"] = merged_dns
+        else:
+            config["dns"] = copy.deepcopy(module_dns_override)
+
+    _apply_corp_dns_override(config, corp_dns)
     config["proxies"] = filtered
 
     proxy_groups = []
@@ -513,6 +640,8 @@ def build_config(
     config["proxy-groups"] = proxy_groups
     config["rule-providers"] = copy.deepcopy(tpl["rule_providers"])
     config["rules"] = list(tpl["rules"])
+    if rules_tail:
+        config["rules"].extend([r for r in rules_tail if str(r).strip()])
 
     return yaml.dump(config, allow_unicode=True, default_flow_style=False, sort_keys=False)
 

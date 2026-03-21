@@ -219,6 +219,14 @@ async function loadSettings() {
         document.getElementById('s_mihomo').value = s.mihomo_path || '';
         document.getElementById('s_autoExpiry').checked = s.auto_disable_on_expiry !== 'false';
         document.getElementById('s_autoEmpty').checked = s.auto_disable_on_empty !== 'false';
+        document.getElementById('s_base_yaml').value = s.module_base_override_yaml || '';
+        document.getElementById('s_tun_yaml').value = s.module_tun_override_yaml || '';
+        document.getElementById('s_dns_yaml').value = s.module_dns_override_yaml || '';
+        document.getElementById('s_corpDnsEnabled').checked = s.corp_dns_enabled === 'true';
+        document.getElementById('s_corpDnsServers').value = s.corp_dns_servers || '';
+        document.getElementById('s_corpDomains').value = s.corp_domain_suffixes || '';
+        document.getElementById('s_corpCidrs').value = s.corp_ipcidrs || '';
+        document.getElementById('s_rules_tail').value = s.rules_tail || '';
     } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -248,6 +256,25 @@ async function saveSystemSettings() {
             })
         });
         toast('系统设置已保存');
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function saveModuleSettings() {
+    try {
+        await api('/api/settings', {
+            method: 'PUT', body: JSON.stringify({
+                module_base_override_yaml: document.getElementById('s_base_yaml').value,
+                module_tun_override_yaml: document.getElementById('s_tun_yaml').value,
+                module_dns_override_yaml: document.getElementById('s_dns_yaml').value,
+                corp_dns_enabled: document.getElementById('s_corpDnsEnabled').checked ? 'true' : 'false',
+                corp_dns_servers: document.getElementById('s_corpDnsServers').value,
+                corp_domain_suffixes: document.getElementById('s_corpDomains').value,
+                corp_ipcidrs: document.getElementById('s_corpCidrs').value,
+                rules_tail: document.getElementById('s_rules_tail').value,
+            })
+        });
+        toast('模块配置已保存');
+        schedulePreviewRefresh();
     } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -293,8 +320,16 @@ function copyPreviewYaml() {
 
 function applyPreviewToDom(d) {
     const yamlStr = d.yaml != null ? String(d.yaml) : '';
+    const mf = d && d.module_flags ? d.module_flags : {};
+    const modParts = [];
+    if (mf.base_override) modParts.push('base');
+    if (mf.tun_override) modParts.push('tun');
+    if (mf.dns_override) modParts.push('dns');
+    if (mf.corp_dns_enabled) modParts.push('corpDNS');
+    if ((mf.rules_tail_count || 0) > 0) modParts.push('rulesTail:' + mf.rules_tail_count);
+    const modText = modParts.length ? ` · 模块 ${modParts.join('/')}` : '';
     document.getElementById('previewStats').textContent =
-        `节点 ${d.proxy_count} · 代理组 ${d.group_count} · 规则集 ${d.rule_provider_count || 0}`;
+        `节点 ${d.proxy_count} · 代理组 ${d.group_count} · 规则集 ${d.rule_provider_count || 0}${modText}`;
     const yw = document.getElementById('configPreviewYaml');
     if (yw) mountYamlViewer(yw, yamlStr);
     const vis = document.getElementById('configPreviewVisual');
