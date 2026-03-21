@@ -225,22 +225,30 @@
               <div id="configCustomTplList" class="space-y-2"></div>
             </div>
             <div class="card space-y-4">
-              <h3 class="text-lg font-bold">过滤与行为</h3>
+              <h3 class="text-lg font-bold">过滤</h3>
+              <p class="text-sm text-slate-400">控制聚合配置中包含哪些节点（协议与名称关键词）。</p>
               <div><label class="text-sm text-slate-400">协议白名单 (逗号分隔, 留空表示不限)</label>
                 <input id="s_include" placeholder="如: ss,trojan,hysteria2"></div>
               <div><label class="text-sm text-slate-400">协议黑名单 (逗号分隔)</label>
                 <input id="s_exclude" placeholder="如: ssr,snell"></div>
               <div><label class="text-sm text-slate-400">排除关键词 (逗号分隔)</label>
                 <input id="s_keywords" placeholder="剩余流量,官网,重置"></div>
+              <button type="button" class="btn btn-primary" onclick="saveFilterSettings()">应用过滤并更新预览</button>
+            </div>
+            <div class="card space-y-4">
+              <h3 class="text-lg font-bold">系统配置</h3>
+              <p class="text-sm text-slate-400">抓取、定时任务与辅助工具等运行参数。</p>
               <div><label class="text-sm text-slate-400">抓取超时 (秒)</label>
-                <input id="s_timeout" type="number" value="15"></div>
+                <input id="s_timeout" type="number" value="15" min="1"></div>
+              <div><label class="text-sm text-slate-400">订阅自动刷新间隔 (小时，0 表示关闭定时刷新)</label>
+                <input id="s_refresh_hours" type="number" value="6" min="0" max="720" title="0–720，0 为仅手动刷新"></div>
               <div><label class="text-sm text-slate-400">Mihomo 可执行文件路径（可选）</label>
                 <input id="s_mihomo" class="font-mono text-sm" placeholder="如 mihomo 或 C:\Tools\mihomo.exe；用于 SS/VMess/VLESS/Trojan/Hy2 单节点 URL 延迟检测"></div>
               <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2">
                 <label class="form-check"><input type="checkbox" id="s_autoExpiry"><span>到期自动禁用</span></label>
                 <label class="form-check"><input type="checkbox" id="s_autoEmpty"><span>流量耗尽自动禁用</span></label>
               </div>
-              <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+              <button type="button" class="btn btn-primary" onclick="saveSystemSettings()">保存系统设置</button>
             </div>
           </div>
           <div class="flex-1 min-w-0 min-h-0 flex flex-col card p-0 overflow-hidden min-h-[min(55vh,520px)] xl:flex-1 xl:min-w-0 xl:max-h-[calc(100vh-8rem)] xl:self-stretch">
@@ -971,25 +979,35 @@ async function loadSettings() {
     document.getElementById('s_exclude').value = s.exclude_types || '';
     document.getElementById('s_keywords').value = s.exclude_keywords || '';
     document.getElementById('s_timeout').value = s.fetch_timeout || '15';
+    document.getElementById('s_refresh_hours').value = s.refresh_interval_hours != null && s.refresh_interval_hours !== '' ? s.refresh_interval_hours : '6';
     document.getElementById('s_mihomo').value = s.mihomo_path || '';
     document.getElementById('s_autoExpiry').checked = s.auto_disable_on_expiry !== 'false';
     document.getElementById('s_autoEmpty').checked = s.auto_disable_on_empty !== 'false';
   } catch (e) { toast(e.message, 'error'); }
 }
 
-async function saveSettings() {
+async function saveFilterSettings() {
   try {
     await api('/api/settings', { method: 'PUT', body: JSON.stringify({
       include_types: document.getElementById('s_include').value,
       exclude_types: document.getElementById('s_exclude').value,
       exclude_keywords: document.getElementById('s_keywords').value,
+    })});
+    toast('过滤已应用');
+    schedulePreviewRefresh();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function saveSystemSettings() {
+  try {
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify({
       fetch_timeout: document.getElementById('s_timeout').value,
+      refresh_interval_hours: document.getElementById('s_refresh_hours').value,
       mihomo_path: document.getElementById('s_mihomo').value,
       auto_disable_on_expiry: document.getElementById('s_autoExpiry').checked ? 'true' : 'false',
       auto_disable_on_empty: document.getElementById('s_autoEmpty').checked ? 'true' : 'false',
     })});
-    toast('设置已保存');
-    schedulePreviewRefresh();
+    toast('系统设置已保存');
   } catch (e) { toast(e.message, 'error'); }
 }
 

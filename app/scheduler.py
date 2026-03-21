@@ -1,6 +1,6 @@
 """
 定时任务模块
-- 每 6 小时自动刷新所有订阅流量数据
+- 按设置的时间间隔自动刷新所有订阅流量数据（Setting: refresh_interval_hours，0 表示关闭）
 - 自动禁用流量耗尽或已过期的订阅
 """
 
@@ -17,6 +17,19 @@ from aggregator import fetch_subscription_content, parse_proxies
 
 logger = logging.getLogger("scheduler")
 scheduler = AsyncIOScheduler()
+
+REFRESH_JOB_ID = "refresh_subs"
+DEFAULT_INTERVAL_HOURS = 6
+MAX_INTERVAL_HOURS = 720
+
+
+def parse_refresh_interval_hours(raw: str) -> int:
+    """解析并限制在 0..720；无法解析时回退为 DEFAULT_INTERVAL_HOURS。"""
+    try:
+        v = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_INTERVAL_HOURS
+    return max(0, min(MAX_INTERVAL_HOURS, v))
 
 
 async def get_setting(key: str, default: str = "") -> str:
@@ -66,11 +79,48 @@ async def refresh_subscriptions():
     logger.info("订阅数据刷新完成")
 
 
-def start_scheduler():
-    scheduler.add_job(refresh_subscriptions, "interval", hours=6, id="refresh_subs",
-                      replace_existing=True, next_run_time=None)
-    scheduler.start()
-    logger.info("定时任务已启动 (每6小时刷新)")
+async def apply_refresh_interval_job():
+    """根据数据库中的 refresh_interval_hours 注册、移除或重调度定时任务。"""
+    raw = await get_setting("refresh_interval_hours", str(DEFAULT_INTERVAL_HOURS))
+    hours = parse_refresh_interval_hours(raw)
+    job = scheduler.get_job(REFRESH_JOB_ID)
+
+    if hours <= 0:
+        if job:
+            scheduler.remove_job(REFRESH_JOB_ID)
+            logger.info("已关闭定时刷新订阅")
+        return
+
+    if job is None:
+        scheduler.add_job(
+            refresh_subscriptions,
+            "interval",
+            hours=hours,
+            id=REFRESH_JOB_ID,
+            replace_existing=True,
+            next_run_time=None,
+        )
+        logger.info("定时任务已注册 (每 %d 小时)", hours)
+    else:
+        scheduler.reschedule_job(REFRESH_JOB_ID, trigger="interval", hours=hours)
+        logger.info("定时任务已重调度 (每 %d 小时)", hours)
+
+
+async def start_scheduler():
+    await apply_refresh_interval_job()
+    if not scheduler.running:
+        scheduler.start()
+    raw = await get_setting("refresh_interval_hours", str(DEFAULT_INTERVAL_HOURS))
+    h = parse_refresh_interval_hours(raw)
+    if h > 0:
+        logger.info("调度器已启动 (订阅自动刷新每 %d 小时)", h)
+    else:
+        logger.info("调度器已启动 (订阅自动刷新已关闭)")
+
+
+async def reschedule_refresh_job():
+    """保存设置后调用，使新间隔立即生效。"""
+    await apply_refresh_interval_job()
 
 
 def stop_scheduler():

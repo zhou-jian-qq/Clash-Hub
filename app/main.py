@@ -26,7 +26,13 @@ from aggregator import (
 )
 from preset_templates import PRESETS, get_preset_names
 from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri
-from scheduler import start_scheduler, stop_scheduler, refresh_subscriptions
+from scheduler import (
+    start_scheduler,
+    stop_scheduler,
+    refresh_subscriptions,
+    reschedule_refresh_job,
+    parse_refresh_interval_hours,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("main")
@@ -37,7 +43,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     await _ensure_defaults()
     await _migrate_legacy_custom_template()
-    start_scheduler()
+    await start_scheduler()
     yield
     stop_scheduler()
 
@@ -64,6 +70,7 @@ async def _ensure_defaults():
             "mihomo_path": "",
             "auto_disable_on_expiry": "true",
             "auto_disable_on_empty": "true",
+            "refresh_interval_hours": "6",
         }
         for k, v in defaults.items():
             existing = await session.get(Setting, k)
@@ -106,6 +113,20 @@ async def _set_setting(db: AsyncSession, key: str, value: str):
         s.value = value
     else:
         db.add(Setting(key=key, value=value))
+
+
+async def _apply_settings_body(db: AsyncSession, body: dict) -> bool:
+    """根据请求体写入 settings。返回是否包含 refresh_interval_hours（需重载定时任务）。"""
+    touch_refresh = "refresh_interval_hours" in body
+    for k, v in body.items():
+        if k == "sub_uuid":
+            continue
+        if k == "refresh_interval_hours":
+            v = str(parse_refresh_interval_hours(str(v)))
+        else:
+            v = str(v)
+        await _set_setting(db, k, v)
+    return touch_refresh
 
 
 def _subscription_batch_prefix(base: str, index: int) -> str:
@@ -397,11 +418,10 @@ async def get_settings(db: AsyncSession = Depends(get_db), _=Depends(require_adm
 @app.put("/api/settings")
 async def update_settings(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     body = await req.json()
-    for k, v in body.items():
-        if k == "sub_uuid":
-            continue
-        await _set_setting(db, k, str(v))
+    touch_refresh = await _apply_settings_body(db, body)
     await db.commit()
+    if touch_refresh:
+        await reschedule_refresh_job()
     return {"ok": True}
 
 
