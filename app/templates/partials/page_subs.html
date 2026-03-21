@@ -1,0 +1,28 @@
+{# 订阅管理：全选、批量操作、动态列表 #subsList #}
+                    <div id="page-subs" class="hidden">
+                        <div class="flex items-center justify-between mb-4 flex-wrap gap-2 gap-y-3">
+                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                <label
+                                    class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none shrink-0"
+                                    title="勾选列表中的订阅">
+                                    <input type="checkbox" id="subSelectAll" class="rounded border-slate-500"
+                                        onchange="toggleSelectAllSubs(this.checked)"> 全选
+                                </label>
+                                <h2 class="text-xl font-bold truncate">订阅管理</h2>
+                            </div>
+                            <div class="flex flex-wrap gap-2 items-center justify-end">
+                                <button type="button" class="btn btn-refresh btn-sm"
+                                    onclick="batchEnableSubs(true)">批量启用</button>
+                                <button type="button" class="btn btn-danger btn-sm"
+                                    onclick="batchEnableSubs(false)">批量禁用</button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="batchDeleteSubs()"
+                                    title="删除已勾选的订阅">批量删除</button>
+                                <button type="button" class="btn btn-accent-orange btn-sm" onclick="batchCheckSubs()"
+                                    title="仅检测列表已勾选的订阅；不可用且原为启用的将自动禁用">批量检测</button>
+                                <button type="button" class="btn btn-refresh btn-sm"
+                                    onclick="refreshAllSubs()">全部刷新</button>
+                                <button class="btn btn-primary btn-sm" onclick="showAddSub()">添加订阅</button>
+                            </div>
+                        </div>
+                        <div id="subsList"></div>
+                    </div>

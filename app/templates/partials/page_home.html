@@ -1,0 +1,26 @@
+{# 首页 Tab：流量概览、订阅链接分设备、重置密钥 / 复制通用链接 #}
+                    <div id="page-home">
+                        <h2 class="text-xl font-bold mb-4">概览</h2>
+                        <div id="homeTraffic" class="mb-6"></div>
+                        <div class="card">
+                            <h3 class="text-lg font-bold mb-1">订阅链接获取</h3>
+                            <p class="text-sm text-slate-400 mb-4">按设备选择导入方式；泄露后可重置密钥使旧链接失效。</p>
+                            <div class="flex flex-wrap gap-1 border-b border-slate-700 mb-4" id="homeSubTabs">
+                                <button type="button" class="home-tab active" data-hometab="ios"
+                                    onclick="switchHomeSubTab('ios',this)">苹果手机软件</button>
+                                <button type="button" class="home-tab" data-hometab="android"
+                                    onclick="switchHomeSubTab('android',this)">安卓手机软件</button>
+                                <button type="button" class="home-tab" data-hometab="desktop"
+                                    onclick="switchHomeSubTab('desktop',this)">Windows 和 Mac 电脑</button>
+                            </div>
+                            <div id="homeSubPanelIos"></div>
+                            <div id="homeSubPanelAndroid" class="hidden"></div>
+                            <div id="homeSubPanelDesktop" class="hidden"></div>
+                            <div class="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-slate-700">
+                                <button type="button" class="btn btn-outline-danger flex-1"
+                                    onclick="resetSubUuid()">重置密钥</button>
+                                <button type="button" class="btn btn-accent-orange flex-1"
+                                    onclick="copyGenericSub()">复制通用订阅链接</button>
+                            </div>
+                        </div>
+                    </div>

@@ -1,0 +1,55 @@
+/**
+ * Clash Hub 管理后台 — 主题变量（亮色 / 暗色）
+ * 依赖：html[data-theme="light"|"dark"]，与 Tailwind 工具类配合使用。
+ */
+:root[data-theme="light"] {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --input-bg: #f8fafc;
+    --nav-hover: #e2e8f0;
+    --nav-active: #3b82f6;
+    --shadow: 0 4px 24px rgba(15, 23, 42, .08);
+    --modal-bg: rgba(15, 23, 42, .45);
+    --yaml-bg: #0f172a;
+    --yaml-text: #e2e8f0;
+    --yaml-gutter: #475569;
+    --yaml-k: #4ade80;
+    --yaml-p: #94a3b8;
+    --yaml-str: #fbbf24;
+    --yaml-num: #38bdf8;
+    --yaml-comment: #64748b;
+}
+
+:root[data-theme="dark"] {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --card: #1e293b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: #334155;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --danger: #f87171;
+    --danger-bg: rgba(239, 68, 68, .15);
+    --input-bg: #0f172a;
+    --nav-hover: #334155;
+    --nav-active: #2563eb;
+    --shadow: 0 4px 24px rgba(0, 0, 0, .35);
+    --modal-bg: rgba(0, 0, 0, .6);
+    --yaml-bg: #020617;
+    --yaml-text: #e2e8f0;
+    --yaml-gutter: #475569;
+    --yaml-k: #4ade80;
+    --yaml-p: #94a3b8;
+    --yaml-str: #fbbf24;
+    --yaml-num: #38bdf8;
+    --yaml-comment: #64748b;
+}

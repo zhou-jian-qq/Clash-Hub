@@ -1,0 +1,13 @@
+{# 主界面容器：顶栏 + 侧栏 + main 内各 Tab 页面 #}
+        <div id="mainPage" class="hidden">
+{% include "partials/main_header.html" %}
+            <div class="flex flex-col lg:flex-row">
+{% include "partials/main_nav.html" %}
+                <main class="layout-main flex-1 p-4 md:p-6 overflow-auto lg:max-h-[calc(100vh-52px)]">
+{% include "partials/page_home.html" %}
+{% include "partials/page_subs.html" %}
+{% include "partials/page_imports.html" %}
+{% include "partials/page_config.html" %}
+                </main>
+            </div>
+        </div>

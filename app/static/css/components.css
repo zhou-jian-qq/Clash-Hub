@@ -1,0 +1,359 @@
+/**
+ * Clash Hub — 按钮、表单、弹窗、YAML 预览、开关等可复用组件
+ * 依赖 theme.css 变量；与 Tailwind 混用。
+ */
+
+/* --- 按钮 --- */
+.btn {
+    padding: .5rem 1rem;
+    border-radius: .5rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform .1s, background .15s, opacity .15s;
+    border: none;
+}
+
+.btn:active {
+    transform: scale(.98);
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: var(--accent-hover);
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.btn-secondary {
+    background: var(--muted);
+    color: #fff;
+}
+
+.btn-secondary:hover {
+    opacity: .9;
+}
+
+.btn-outline-danger {
+    background: transparent;
+    color: var(--danger);
+    border: 2px solid var(--danger);
+}
+
+.btn-outline-danger:hover {
+    background: var(--danger-bg);
+}
+
+.btn-accent-orange {
+    background: #ea580c;
+    color: #fff;
+}
+
+.btn-accent-orange:hover {
+    background: #c2410c;
+}
+
+.btn-refresh {
+    background: #16a34a;
+    color: #fff;
+}
+
+.btn-refresh:hover {
+    background: #15803d;
+}
+
+.btn-sm {
+    padding: .25rem .75rem;
+    font-size: .875rem;
+}
+
+/* --- 表单 --- */
+input:not([type=checkbox]):not([type=radio]):not([type=range]),
+select,
+textarea {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: .5rem;
+    padding: .65rem .875rem;
+    color: var(--text);
+    width: 100%;
+    min-height: 2.75rem;
+    line-height: 1.45;
+    box-sizing: border-box;
+}
+
+textarea {
+    min-height: 6rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, .25);
+}
+
+.form-check {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.form-check input[type=checkbox],
+.form-check input[type=radio] {
+    width: 1.05rem;
+    height: 1.05rem;
+    min-height: 0;
+    flex-shrink: 0;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.form-check span {
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.progress-bar {
+    height: .5rem;
+    border-radius: .25rem;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: .25rem;
+    transition: width .35s ease;
+}
+
+/* --- 弹层与提示 --- */
+.modal-bg {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.tag {
+    display: inline-block;
+    padding: .125rem .5rem;
+    border-radius: .25rem;
+    font-size: .75rem;
+    font-weight: 500;
+}
+
+.toast {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 100;
+    padding: .75rem 1.25rem;
+    border-radius: .5rem;
+    font-weight: 500;
+    animation: slidein .3s;
+}
+
+@keyframes slidein {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* --- 订阅/节点行内开关 --- */
+.sub-switch {
+    position: relative;
+    display: inline-block;
+    width: 2.75rem;
+    height: 1.5rem;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+.sub-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.sub-switch-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--muted);
+    border-radius: 9999px;
+    transition: background .2s ease;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.sub-switch-slider::before {
+    content: "";
+    position: absolute;
+    width: 1.125rem;
+    height: 1.125rem;
+    left: .1875rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #f1f5f9;
+    border-radius: 50%;
+    transition: transform .2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+}
+
+.sub-switch input:checked + .sub-switch-slider {
+    background: #16a34a;
+}
+
+.sub-switch input:checked + .sub-switch-slider::before {
+    transform: translate(1.25rem, -50%);
+}
+
+.sub-switch input:focus-visible + .sub-switch-slider {
+    box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
+}
+
+/* --- 首页订阅说明 Tab --- */
+.home-tab {
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    padding: .5rem .75rem;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+}
+
+.home-tab.active {
+    color: #ea580c;
+    border-bottom-color: #ea580c;
+    font-weight: 600;
+}
+
+.client-row {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .75rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.client-row:last-child {
+    border-bottom: none;
+}
+
+/* --- 配置页预设行 --- */
+.preset-row-config {
+    cursor: pointer;
+    border-radius: .5rem;
+    border: 2px solid var(--border);
+    padding: .75rem 1rem;
+    margin-bottom: .5rem;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.preset-row-config:hover {
+    border-color: var(--accent);
+}
+
+.preset-row-config.is-active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* --- YAML 预览（行号 + 高亮）--- */
+.yaml-viewer {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    font-family: ui-monospace, monospace;
+    font-size: .75rem;
+    line-height: 1.5;
+    min-height: min(50vh, 480px);
+    flex: 1 1 auto;
+    min-width: 0;
+    background: var(--yaml-bg);
+    color: var(--yaml-text);
+    border-radius: .5rem;
+    overflow: auto;
+    border: 1px solid var(--border);
+}
+
+.yaml-gutter {
+    flex: 0 0 auto;
+    padding: .75rem .5rem .75rem .75rem;
+    text-align: right;
+    color: var(--yaml-gutter);
+    user-select: none;
+    border-right: 1px solid var(--border);
+    white-space: pre;
+    min-width: 2.5rem;
+}
+
+.yaml-code {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: .75rem;
+    overflow: visible;
+    white-space: pre;
+    color: inherit;
+    max-width: none;
+}
+
+.yaml-code code {
+    display: block;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    white-space: pre;
+}
+
+.yaml-k { color: var(--yaml-k); }
+.yaml-p { color: var(--yaml-p); }
+.yaml-str { color: var(--yaml-str); }
+.yaml-num { color: var(--yaml-num); }
+.yaml-comment { color: var(--yaml-comment); }
+
+/* --- 预览 YAML / 可视化切换 --- */
+.preview-toggle {
+    display: inline-flex;
+    border-radius: .5rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.preview-toggle button {
+    padding: .35rem .75rem;
+    font-size: .75rem;
+    background: var(--input-bg);
+    color: var(--muted);
+    border: none;
+    cursor: pointer;
+}
+
+.preview-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+}

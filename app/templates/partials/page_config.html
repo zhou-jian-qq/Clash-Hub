@@ -1,0 +1,103 @@
+{# 配置页：模板/过滤/系统设置 + 右侧 YAML 与可视化预览 #}
+                    <div id="page-config"
+                        class="hidden flex flex-col xl:flex-row gap-4 xl:items-stretch xl:min-h-0 min-h-0">
+                        <div
+                            class="flex-1 min-w-0 min-h-0 space-y-4 xl:flex-none xl:w-[42%] xl:max-w-[42%] xl:overflow-y-auto xl:max-h-[calc(100vh-8rem)]">
+                            <div class="card">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h3 class="text-lg font-bold">模板</h3>
+                                </div>
+                                <p class="text-sm text-slate-400 mb-3">选用预设或自定义模板；右侧实时预览聚合结果。</p>
+                                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">预设</h4>
+                                <div id="configPresetList"></div>
+                                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 mt-4">自定义
+                                </h4>
+                                <button type="button" class="btn btn-primary btn-sm mb-2"
+                                    onclick="showTplItemModal(null)">创建模板</button>
+                                <div id="configCustomTplList" class="space-y-2"></div>
+                            </div>
+                            <div class="card space-y-4">
+                                <h3 class="text-lg font-bold">过滤</h3>
+                                <p class="text-sm text-slate-400">控制聚合配置中包含哪些节点（协议与名称关键词）。</p>
+                                <div><label class="text-sm text-slate-400">协议白名单 (逗号分隔, 留空表示不限)</label>
+                                    <input id="s_include" placeholder="如: ss,trojan,hysteria2">
+                                </div>
+                                <div><label class="text-sm text-slate-400">协议黑名单 (逗号分隔)</label>
+                                    <input id="s_exclude" placeholder="如: ssr,snell">
+                                </div>
+                                <div><label class="text-sm text-slate-400">排除关键词 (逗号分隔)</label>
+                                    <input id="s_keywords" placeholder="剩余流量,官网,重置">
+                                </div>
+                                <button type="button" class="btn btn-primary"
+                                    onclick="saveFilterSettings()">应用过滤并更新预览</button>
+                            </div>
+                            <div class="card space-y-4">
+                                <h3 class="text-lg font-bold">系统配置</h3>
+                                <p class="text-sm text-slate-400">抓取、定时任务与辅助工具等运行参数。</p>
+                                <div><label class="text-sm text-slate-400">抓取超时 (秒)</label>
+                                    <input id="s_timeout" type="number" value="15" min="1">
+                                </div>
+                                <div><label class="text-sm text-slate-400">订阅自动刷新间隔 (小时，0 表示关闭定时刷新)</label>
+                                    <input id="s_refresh_hours" type="number" value="6" min="0" max="720"
+                                        title="0–720，0 为仅手动刷新">
+                                </div>
+                                <div><label class="text-sm text-slate-400">Mihomo 可执行文件路径（可选）</label>
+                                    <input id="s_mihomo" class="font-mono text-sm"
+                                        placeholder="如 mihomo 或 C:\Tools\mihomo.exe；用于 SS/VMess/VLESS/Trojan/Hy2 单节点 URL 延迟检测">
+                                </div>
+                                <div
+                                    class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2">
+                                    <label class="form-check"><input type="checkbox"
+                                            id="s_autoExpiry"><span>到期自动禁用</span></label>
+                                    <label class="form-check"><input type="checkbox"
+                                            id="s_autoEmpty"><span>流量耗尽自动禁用</span></label>
+                                </div>
+                                <button type="button" class="btn btn-primary"
+                                    onclick="saveSystemSettings()">保存系统设置</button>
+                            </div>
+                        </div>
+                        <div
+                            class="flex-1 min-w-0 min-h-0 flex flex-col card p-0 overflow-hidden min-h-[min(55vh,520px)] xl:flex-1 xl:min-w-0 xl:max-h-[calc(100vh-8rem)] xl:self-stretch">
+                            <div
+                                class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-700 shrink-0">
+                                <div class="flex items-center gap-2 font-semibold">
+                                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    预览
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span id="previewStats" class="text-xs text-slate-400"></span>
+                                    <div class="preview-toggle">
+                                        <button type="button" id="pvBtnYaml" class="active"
+                                            onclick="setPreviewMode('yaml')">YAML</button>
+                                        <button type="button" id="pvBtnVis"
+                                            onclick="setPreviewMode('visual')">可视化</button>
+                                    </div>
+                                    <button type="button" class="btn btn-refresh btn-sm"
+                                        onclick="refreshPreview()">刷新</button>
+                                </div>
+                            </div>
+                            <div id="configPreviewYamlWrap"
+                                class="relative flex-1 min-h-0 overflow-hidden p-3 flex flex-col">
+                                <button type="button" id="btnCopyYaml"
+                                    class="absolute top-3 z-10 p-2 rounded-lg border shadow-sm opacity-90 hover:opacity-100 transition-opacity"
+                                    style="right:2.25rem;background:var(--card);border-color:var(--border);color:var(--muted)"
+                                    title="复制 YAML" aria-label="复制 YAML" onclick="copyPreviewYaml()">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                        aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                    </svg>
+                                </button>
+                                <div id="configPreviewYaml" class="yaml-viewer"></div>
+                            </div>
+                            <div id="configPreviewVisual"
+                                class="hidden flex-1 min-h-0 overflow-hidden p-4 gap-4 text-sm flex flex-col md:flex-row">
+                            </div>
+                        </div>
+                    </div>

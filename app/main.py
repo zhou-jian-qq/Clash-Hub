@@ -10,6 +10,7 @@ import yaml
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -69,6 +70,9 @@ async def _no_store_api_responses(request: Request, call_next):
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(_STATIC_DIR):
     app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
+templates = Jinja2Templates(directory=_TEMPLATES_DIR)
 
 
 async def _ensure_defaults():
@@ -1037,9 +1041,8 @@ async def chrome_devtools_wellknown():
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index():
-    html_path = os.path.join(os.path.dirname(__file__), "templates", "index.html")
-    if os.path.exists(html_path):
-        with open(html_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(f.read())
+async def index(request: Request):
+    index_path = os.path.join(_TEMPLATES_DIR, "index.html")
+    if os.path.exists(index_path):
+        return templates.TemplateResponse("index.html", {"request": request})
     return HTMLResponse("<h1>Clash Hub</h1><p>模板文件缺失</p>")

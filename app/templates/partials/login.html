@@ -1,0 +1,14 @@
+{# 登录区：密码输入、doLogin、错误提示 #}
+        <div id="loginPage" class="relative flex items-center justify-center min-h-screen p-4">
+            <div class="login-deco"></div>
+            <div class="card w-full max-w-sm text-center relative z-10">
+                <img src="/static/favicon.svg" alt="" width="56" height="56" class="app-logo mx-auto mb-3 shadow-lg"
+                    decoding="async">
+                <h1 class="text-2xl font-bold mb-1">Clash Hub</h1>
+                <p class="text-slate-400 mb-6 text-sm">订阅聚合管理</p>
+                <input id="pwdInput" type="password" placeholder="管理密码" class="mb-4"
+                    onkeydown="if(event.key==='Enter')doLogin()">
+                <button class="btn btn-primary w-full" onclick="doLogin()">登 录</button>
+                <p id="loginErr" class="text-red-400 text-sm mt-3 hidden"></p>
+            </div>
+        </div>

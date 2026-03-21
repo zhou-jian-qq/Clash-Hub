@@ -1,0 +1,21 @@
+{# 主界面顶栏：Logo、主题切换、退出 #}
+            <header class="border-b px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    <img src="/static/favicon.svg" alt="" width="32" height="32" class="app-logo-sm" decoding="async">
+                    <h1 class="text-lg font-bold truncate">Clash Hub</h1>
+                </div>
+                <div class="flex items-center gap-2 md:gap-3">
+                    <button type="button" class="btn btn-secondary btn-sm p-2" title="切换主题" onclick="toggleTheme()"
+                        id="themeBtn" aria-label="切换主题">
+                        <svg id="iconSun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <svg id="iconMoon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="doLogout()">退出</button>
+                </div>
+            </header>

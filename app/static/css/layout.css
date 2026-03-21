@@ -1,0 +1,109 @@
+/**
+ * Clash Hub — 页面骨架与导航布局
+ * 含登录装饰、侧栏、主区域响应式；卡片容器见本文件，细粒度组件见 components.css。
+ */
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    transition: background .2s, color .2s;
+}
+
+.card {
+    background: var(--card);
+    border-radius: .75rem;
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    transition: box-shadow .2s, border-color .2s;
+}
+
+.card:hover {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, .12);
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 1rem;
+    cursor: pointer;
+    border-radius: .5rem;
+    transition: background .15s;
+    color: var(--text);
+}
+
+.nav-item:hover {
+    background: var(--nav-hover);
+}
+
+.nav-item.active {
+    background: var(--nav-active);
+    color: #fff;
+}
+
+.nav-item svg {
+    opacity: .85;
+}
+
+header {
+    border-color: var(--border) !important;
+}
+
+.border-slate-700 {
+    border-color: var(--border) !important;
+}
+
+.text-slate-400 {
+    color: var(--muted) !important;
+}
+
+.login-deco {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.login-deco::before {
+    content: "";
+    position: absolute;
+    width: 60vmax;
+    height: 60vmax;
+    left: -20%;
+    top: -20%;
+    background: radial-gradient(circle, rgba(59, 130, 246, .15), transparent 60%);
+    border-radius: 50%;
+}
+
+@media (max-width: 1023px) {
+    .layout-nav {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        min-height: auto;
+        padding: .5rem 1rem;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: .25rem;
+    }
+
+    .layout-main {
+        max-height: none !important;
+    }
+}
+
+.app-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: .65rem;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.app-logo-sm {
+    width: 2rem;
+    height: 2rem;
+    border-radius: .5rem;
+}
