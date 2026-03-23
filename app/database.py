@@ -27,7 +27,11 @@ async def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     async with engine.begin() as conn:
         from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode
-        await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+        except Exception as e:
+            import logging
+            logging.getLogger("database").warning(f"Metadata create_all warning: {e}")
 
 
 async def get_db() -> AsyncSession:

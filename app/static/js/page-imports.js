@@ -52,7 +52,26 @@ async function loadImportBatches() {
             return;
         }
         el.innerHTML = batches.map(b => {
-            const nodes = (b.nodes || []).map(n => `
+            const nodes = (b.nodes || []).map(n => {
+                let statusHtml = `<span id="node-status-${n.id}" class="inline-flex items-center gap-1 text-xs text-slate-400 ml-2" title="未检测">
+                   <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                   <span class="latency-text">-</span>
+                </span>`;
+                if (n.last_check_at) {
+                    if (n.last_latency_ms != null && n.last_latency_ms >= 0) {
+                        statusHtml = `<span id="node-status-${n.id}" class="inline-flex items-center gap-1 text-xs ml-2">
+                           <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                           <span class="latency-text text-green-500">${n.last_latency_ms} ms</span>
+                        </span>`;
+                    } else {
+                        statusHtml = `<span id="node-status-${n.id}" class="inline-flex items-center gap-1 text-xs ml-2">
+                           <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                           <span class="latency-text text-red-500">失败</span>
+                        </span>`;
+                    }
+                }
+                
+                return `
 <div class="flex flex-wrap items-center gap-2 py-2 border-b border-slate-700/50 last:border-0 pl-2 md:pl-4">
   <label class="sub-switch mr-1 shrink-0" title="启用">
     <input type="checkbox" role="switch" aria-label="启用节点" ${n.enabled ? 'checked' : ''} onchange="toggleImportNodeEnabled(${n.id}, this.checked)">
@@ -60,19 +79,21 @@ async function loadImportBatches() {
   </label>
   <span class="font-medium truncate max-w-[12rem] md:max-w-none">${esc(n.display_name)}</span>
   <span class="tag bg-slate-600/50 text-xs shrink-0">${esc(n.proxy_type)}</span>
-  <span class="text-xs text-slate-500 hidden sm:inline">${formatIsoTime(n.updated_at)}</span>
+  ${statusHtml}
+  <span class="text-xs text-slate-500 hidden sm:inline ml-1">${n.last_check_at ? formatIsoTime(n.last_check_at) : formatIsoTime(n.updated_at)}</span>
   <div class="flex flex-wrap gap-1 ml-auto">
     <button type="button" class="btn btn-secondary btn-sm" onclick="showEditImportNodeModal(${n.id})">编辑</button>
-    <button type="button" class="btn btn-outline-accent btn-sm" onclick="checkImportNode(${n.id})">测速</button>
+    <button type="button" class="btn btn-outline-accent btn-sm" id="btn-check-${n.id}" onclick="checkImportNode(${n.id}, true)">测速</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="deleteImportNode(${n.id})">删除</button>
   </div>
-</div>`).join('');
+</div>`}).join('');
             return `<details class="card mb-2" open>
 <summary class="cursor-pointer font-semibold flex flex-wrap items-center gap-2 py-2 px-2 list-none">
   <span class="select-none">${esc(b.name)}</span>
   <span class="text-xs text-slate-400 font-normal">添加 ${formatIsoTime(b.created_at)}</span>
   <span class="text-xs text-slate-500 font-normal">更新 ${formatIsoTime(b.updated_at)}</span>
   <span class="flex flex-wrap gap-1 ml-auto" onclick="event.preventDefault(); event.stopPropagation();">
+    <button type="button" class="btn btn-outline-accent btn-sm" onclick="event.stopPropagation(); batchCheckImportBatch(${b.id})" title="批量测速本批次所有节点">批量测速</button>
     <button type="button" class="btn btn-outline-warn btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, false)" title="本批次下全部节点设为禁用">批量禁用</button>
     <button type="button" class="btn btn-success btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, true)" title="本批次下全部节点设为启用">批量启用</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="renameImportBatch(${b.id})">改名</button>
@@ -200,20 +221,77 @@ async function deleteImportNode(id) {
 }
 
 /** 与订阅「检测」一致：probe_kind 说明测速方式；修复曾误用 '\\\\n' 导致延迟行显示为字面量 */
-async function checkImportNode(id) {
+async function checkImportNode(id, showAlert = false) {
+    const statusEl = document.getElementById('node-status-' + id);
+    if (statusEl) {
+        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span><span class="latency-text">测速中...</span>`;
+    }
+    
     try {
-        toast('正在测速…');
+        if (showAlert) toast('正在测速…');
         const r = await api('/api/imported-nodes/' + id + '/check', { method: 'POST', body: '{}' });
-        const head = r.available ? '可用' : '不可用';
-        let tcpLine = '';
-        const pk = r.probe_kind || '';
-        if (r.latency_ms != null)
-            tcpLine = '\n延迟（' + (pk === 'httpx' ? '经代理 URL' : pk === 'mihomo' ? 'Mihomo URL' : pk === 'tcp-fallback' ? 'TCP 兜底' : '探测') + '）: ' + Math.round(r.latency_ms) + ' ms';
-        else if (r.tcp_tested && !r.available)
-            tcpLine = '\n已尝试探测（失败，见上文说明）';
-        const detail = (r.message || '') + tcpLine;
-        showResultModal('「' + (r.display_name || '') + '」 ' + head, detail);
-    } catch (e) { toast(e.message, 'error'); }
+        
+        if (statusEl) {
+            if (r.available) {
+                const ms = r.latency_ms != null ? Math.round(r.latency_ms) : 0;
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="latency-text text-green-500">${ms} ms</span>`;
+            } else {
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="latency-text text-red-500">失败</span>`;
+            }
+        }
+        
+        if (showAlert) {
+            const head = r.available ? '可用' : '不可用';
+            let tcpLine = '';
+            const pk = r.probe_kind || '';
+            if (r.latency_ms != null)
+                tcpLine = '\n延迟（' + (pk === 'httpx' ? '经代理 URL' : pk === 'mihomo' ? 'Mihomo URL' : pk === 'tcp-fallback' ? 'TCP 兜底' : '探测') + '）: ' + Math.round(r.latency_ms) + ' ms';
+            else if (r.tcp_tested && !r.available)
+                tcpLine = '\n已尝试探测（失败，见上文说明）';
+            const detail = (r.message || '') + tcpLine;
+            showResultModal('「' + (r.display_name || '') + '」 ' + head, detail);
+        }
+        return r;
+    } catch (e) { 
+        if (statusEl) {
+            statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="latency-text text-red-500">错误</span>`;
+        }
+        if (showAlert) toast(e.message, 'error'); 
+        throw e;
+    }
+}
+
+/** 批量测速特定批次下的所有节点，最大并发数10 */
+async function batchCheckImportBatch(batchId) {
+    const b = _importBatchesCache.find(x => x.id === batchId);
+    if (!b || !b.nodes || b.nodes.length === 0) {
+        toast('该批次下无节点', 'error');
+        return;
+    }
+    
+    toast(`开始批量测速 ${b.nodes.length} 个节点...`);
+    const nodes = b.nodes;
+    const concurrency = 10;
+    
+    let i = 0;
+    const executeNext = async () => {
+        if (i >= nodes.length) return;
+        const node = nodes[i++];
+        try {
+            await checkImportNode(node.id, false);
+        } catch (e) {
+            console.error('Check failed for node', node.id, e);
+        }
+        await executeNext();
+    };
+
+    const workers = [];
+    for (let w = 0; w < concurrency; w++) {
+        workers.push(executeNext());
+    }
+    
+    await Promise.all(workers);
+    toast(`批次 ${b.name} 测速完成`);
 }
 
 /** 将某导入批次下全部节点设为启用或禁用；走 PUT /api/import-batches/{id}（与改名同一路由，避免部分环境下长路径 POST 404） */

@@ -26,6 +26,7 @@ async function loadSubs() {
   <div class="flex flex-wrap gap-1">
     <button type="button" class="btn btn-ghost btn-sm" onclick="refreshSub(${s.id})">刷新</button>
     <button type="button" class="btn btn-outline-accent btn-sm" onclick="checkSub(${s.id})" title="检测：拉取+解析；单节点时额外 TCP 建连延迟">检测</button>
+    <button type="button" class="btn btn-outline-accent btn-sm" onclick="showSubNodesModal(${s.id})" title="查看并测速订阅下的节点">节点明细</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="showEditSub(${s.id})">编辑</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="deleteSub(${s.id})">删除</button>
   </div>
@@ -204,6 +205,141 @@ async function toggleSubEnabled(id, enabled) {
         toast(e.message, 'error');
         await loadSubs();
     }
+}
+
+// ---- 无状态节点查看与测速 ----
+let _currentSubNodes = []; // 暂存当前正在查看的订阅节点列表
+
+async function showSubNodesModal(id) {
+    const sub = _subsCache.find(x => x.id === id);
+    if (!sub) { toast('未找到该订阅', 'error'); return; }
+    
+    // 显示加载中弹窗
+    const loadingHtml = `<div class="modal-bg" id="subNodesModal" onclick="if(event.target===this)this.remove()">
+    <div class="card w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <h3 class="text-lg font-bold mb-3 border-b border-slate-700/50 pb-2 flex items-center justify-between">
+        <span>「${esc(sub.name)}」节点明细</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('subNodesModal').remove()">关闭</button>
+      </h3>
+      <div class="flex-1 overflow-y-auto p-8 text-center text-slate-400" id="subNodesContainer">
+        正在实时拉取并解析节点配置，请稍候...
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', loadingHtml);
+    
+    try {
+        const r = await api('/api/subscriptions/' + id + '/nodes');
+        const nodes = r.nodes || [];
+        _currentSubNodes = nodes;
+        
+        const container = document.getElementById('subNodesContainer');
+        if (!container) return; // 弹窗已被关闭
+        
+        if (nodes.length === 0) {
+            container.innerHTML = '<div class="py-8">未解析到任何有效节点</div>';
+            return;
+        }
+        
+        container.className = "flex-1 overflow-y-auto";
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-sm text-slate-400">共解析到 ${nodes.length} 个节点（关闭弹窗后状态将不被保留）</span>
+                <button type="button" class="btn btn-outline-accent btn-sm" onclick="batchCheckSubNodes()">批量测速</button>
+            </div>
+            <div class="border border-slate-700/50 rounded-lg overflow-hidden">
+                ${nodes.map((n, i) => `
+                <div class="flex items-center gap-3 p-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 transition-colors">
+                    <span class="text-xs text-slate-500 w-6 text-right">${i + 1}</span>
+                    <span class="font-medium truncate max-w-[15rem] md:max-w-md" title="${esc(n.name)}">${esc(n.name)}</span>
+                    <span class="tag bg-slate-600/50 text-xs shrink-0">${esc(n.type)}</span>
+                    <span id="sub-node-status-${i}" class="inline-flex items-center gap-1 text-xs text-slate-400 ml-auto" title="未检测">
+                       <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                       <span class="latency-text">-</span>
+                    </span>
+                    <button type="button" class="btn btn-outline-accent btn-sm ml-2" onclick="checkSubNode(${i})">测速</button>
+                </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (e) {
+        const container = document.getElementById('subNodesContainer');
+        if (container) container.innerHTML = `<div class="py-8 text-red-400">加载失败: ${esc(e.message)}</div>`;
+        toast(e.message, 'error');
+    }
+}
+
+async function checkSubNode(idx, showAlert = false) {
+    const node = _currentSubNodes[idx];
+    if (!node) return;
+    
+    const statusEl = document.getElementById('sub-node-status-' + idx);
+    if (statusEl) {
+        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span><span class="latency-text">测速中...</span>`;
+    }
+    
+    try {
+        if (showAlert) toast('正在测速…');
+        const r = await api('/api/proxies/check', { 
+            method: 'POST', 
+            body: JSON.stringify({ proxy_yaml: node.proxy_yaml }) 
+        });
+        
+        if (statusEl) {
+            if (r.available) {
+                const ms = r.latency_ms != null ? Math.round(r.latency_ms) : 0;
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="latency-text text-green-500">${ms} ms</span>`;
+            } else {
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500" title="${esc(r.error || '失败')}"></span><span class="latency-text text-red-500 cursor-help" title="${esc(r.error || '失败')}">失败</span>`;
+            }
+        }
+        
+        if (showAlert) {
+            const head = r.available ? '可用' : '不可用';
+            let tcpLine = '';
+            const pk = r.probe_kind || '';
+            if (r.latency_ms != null)
+                tcpLine = '\n延迟（' + (pk === 'httpx' ? '经代理 URL' : pk === 'mihomo' ? 'Mihomo URL' : pk === 'tcp-fallback' ? 'TCP 兜底' : '探测') + '）: ' + Math.round(r.latency_ms) + ' ms';
+            else if (r.tcp_tested && !r.available)
+                tcpLine = '\n已尝试探测（失败，见上文说明）';
+            const detail = (r.message || '') + tcpLine;
+            showResultModal('「' + (node.name || '') + '」 ' + head, detail);
+        }
+        return r;
+    } catch (e) { 
+        if (statusEl) {
+            statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500" title="${esc(e.message)}"></span><span class="latency-text text-red-500 cursor-help" title="${esc(e.message)}">错误</span>`;
+        }
+        if (showAlert) toast(e.message, 'error'); 
+        throw e;
+    }
+}
+
+async function batchCheckSubNodes() {
+    if (!_currentSubNodes.length) return;
+    
+    toast(`开始批量测速 ${_currentSubNodes.length} 个节点...`);
+    const concurrency = 10;
+    let i = 0;
+    
+    const executeNext = async () => {
+        if (i >= _currentSubNodes.length) return;
+        const currentIdx = i++;
+        try {
+            await checkSubNode(currentIdx, false);
+        } catch (e) {
+            console.error('Check failed for sub node', currentIdx, e);
+        }
+        await executeNext();
+    };
+
+    const workers = [];
+    for (let w = 0; w < concurrency; w++) {
+        workers.push(executeNext());
+    }
+    
+    await Promise.all(workers);
+    toast(`本页节点测速完成`);
 }
 
 const TPL_YAML_STUB = `mixed-port: 7890

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, Boolean, BigInteger, Integer, DateTime, ForeignKey
+from sqlalchemy import String, Text, Boolean, BigInteger, Integer, DateTime, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
@@ -95,6 +95,8 @@ class ImportedNode(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     proxy_yaml: Mapped[str] = mapped_column(Text, nullable=False)
+    last_check_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now, onupdate=_utc_now)
 
@@ -107,6 +109,8 @@ class ImportedNode(Base):
             "sort_order": self.sort_order,
             "enabled": self.enabled,
             "proxy_yaml": self.proxy_yaml,
+            "last_check_at": _iso_utc_api(self.last_check_at),
+            "last_latency_ms": self.last_latency_ms,
             "created_at": _iso_utc_api(self.created_at),
             "updated_at": _iso_utc_api(self.updated_at),
         }

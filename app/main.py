@@ -417,6 +417,96 @@ async def check_one_subscription(sub_id: int, db: AsyncSession = Depends(get_db)
         "enabled": sub.enabled,
     }
 
+@app.get("/api/subscriptions/{sub_id}/nodes")
+async def get_subscription_nodes(sub_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    """获取单条订阅下的所有节点明细（无状态，实时拉取或从上次内容中解析）"""
+    sub = await db.get(Subscription, sub_id)
+    if not sub:
+        raise HTTPException(404, "订阅不存在")
+    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    try:
+        content, _ = await fetch_subscription_content(sub.url, timeout)
+        proxies = parse_proxies(content or "")
+        if not proxies:
+            return {"ok": True, "nodes": []}
+        proxies = rename_proxies(proxies, sub.prefix or "")
+        nodes = []
+        for i, p in enumerate(proxies):
+            nodes.append({
+                "id": i,
+                "name": p.get("name", ""),
+                "type": p.get("type", ""),
+                "proxy_yaml": yaml.dump([p], allow_unicode=True, default_flow_style=False, sort_keys=False)
+            })
+        return {"ok": True, "nodes": nodes}
+    except Exception as e:
+        raise HTTPException(500, f"获取节点失败: {e}")
+
+@app.post("/api/proxies/check")
+async def check_proxy_stateless(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    """无状态代理测速 API"""
+    body = await req.json()
+    proxy_yaml = body.get("proxy_yaml")
+    if not proxy_yaml:
+        raise HTTPException(400, "缺少 proxy_yaml 参数")
+    
+    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    mihomo_path = await _get_setting(db, "mihomo_path", "")
+    
+    try:
+        proxies = parse_proxies(proxy_yaml)
+        if not proxies:
+            raise HTTPException(400, "无法解析节点配置")
+        
+        p0 = proxies[0]
+        probe_budget = min(25.0, float(timeout))
+        
+        from proxy_latency import probe_single_proxy
+        ok_p, ms, perr, kind = await probe_single_proxy(p0, probe_budget, mihomo_path)
+        
+        tested = kind != "none"
+        if not ok_p:
+            err_msg = str(perr) if perr else "未知错误"
+            return {
+                "available": False,
+                "message": f"探测未通过：{err_msg}",
+                "error": err_msg,
+                "latency_ms": None,
+                "tcp_tested": tested,
+                "probe_kind": kind,
+            }
+            
+        if kind == "httpx":
+            msg = f"可用；经代理访问测试 URL 延迟约 {ms:.0f} ms（http/socks）"
+        elif kind == "mihomo":
+            msg = f"可用；Mihomo URL 测试延迟约 {ms:.0f} ms（协议栈与 Clash 一致）"
+        elif kind == "tcp-fallback":
+            msg = (
+                f"可用；TCP 建连约 {ms:.0f} ms（兜底：未通过 URL 级代理测试，"
+                f"多为未配置 Mihomo 或上层代理检测失败）"
+            )
+        else:
+            msg = "可用"
+            
+        return {
+            "available": True,
+            "message": msg,
+            "error": None,
+            "latency_ms": ms,
+            "tcp_tested": tested,
+            "probe_kind": kind,
+        }
+    except Exception as e:
+        logger.warning(f"无状态测速异常: {e}")
+        return {
+            "available": False,
+            "message": f"不可用：{e}",
+            "error": str(e),
+            "latency_ms": None,
+            "tcp_tested": False,
+            "probe_kind": "none"
+        }
+
 
 @app.post("/api/subscriptions/batch-enabled")
 async def batch_set_subscription_enabled(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
@@ -767,6 +857,15 @@ async def check_imported_node(node_id: int, db: AsyncSession = Depends(get_db), 
     prefix = _subscription_batch_prefix(batch.name, n.sort_order)
     # 使用专用测速逻辑：始终对单节点 YAML 的第一条 proxy 探测，见 aggregator.check_imported_proxy_yaml
     r = await check_imported_proxy_yaml(n.proxy_yaml, prefix, timeout, mihomo_path=mihomo_path)
+    
+    # 存入数据库
+    n.last_check_at = datetime.now(timezone.utc)
+    if r.get("ok"):
+        n.last_latency_ms = int(r.get("latency_ms")) if r.get("latency_ms") is not None else -1
+    else:
+        n.last_latency_ms = -1
+    await db.commit()
+    
     return {
         "available": r["ok"],
         "node_count": r["node_count"],
