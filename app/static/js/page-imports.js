@@ -212,7 +212,7 @@ async function checkImportNode(id) {
         else if (r.tcp_tested && !r.available)
             tcpLine = '\n已尝试探测（失败，见上文说明）';
         const detail = (r.message || '') + tcpLine;
-        alert('「' + (r.display_name || '') + '」\n\n' + head + '\n' + detail);
+        showResultModal('「' + (r.display_name || '') + '」 ' + head, detail);
     } catch (e) { toast(e.message, 'error'); }
 }
 

@@ -309,14 +309,17 @@ async def check_imported_proxy_yaml(
         suffix = f"（YAML 解析到 {n} 个节点，仅对第一个测速）" if n > 1 else ""
         p0 = rename_proxies([proxies[0]], prefix or "")[0]
         probe_budget = min(25.0, float(timeout))
+        
         ok_p, ms, perr, kind = await probe_single_proxy(p0, probe_budget, mihomo_path)
+        
         tested = kind != "none"
         if not ok_p:
+            err_msg = str(perr) if perr else "未知错误"
             return {
                 "ok": False,
                 "node_count": n,
-                "message": f"探测未通过：{perr or '未知错误'}{suffix}",
-                "error": perr,
+                "message": f"探测未通过：{err_msg}{suffix}",
+                "error": err_msg,
                 "latency_ms": None,
                 "tcp_tested": tested,
                 "probe_kind": kind,

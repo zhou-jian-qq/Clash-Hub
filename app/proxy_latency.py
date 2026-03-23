@@ -17,6 +17,7 @@ import tempfile
 import time
 import urllib.parse
 from typing import Any
+import sys
 
 import httpx
 import yaml
@@ -28,7 +29,7 @@ DEFAULT_URL_TEST = "https://www.gstatic.com/generate_204"
 _TYPES_HTTPX = frozenset({"http", "socks5", "socks"})
 # Mihomo 核心可完整出站并测 delay 的协议（与 httpx 直连接近但走内核）
 _TYPES_MIHOMO_CORE = frozenset(
-    {"ss", "ssr", "vmess", "vless", "trojan", "hysteria2", "hysteria", "tuic"}
+    {"ss", "ssr", "vmess", "vless", "trojan", "hysteria2", "hysteria", "tuic", "http", "socks5", "socks"}
 )
 
 
@@ -80,7 +81,9 @@ def proxy_to_httpx_proxy_url(p: dict[str, Any]) -> str | None:
         auth = f"{_quote_proxy_component(user)}:{_quote_proxy_component(pwd)}@"
 
     if t == "http":
-        return f"http://{auth}{host_s}:{port_i}"
+        tls = str(p.get("tls", "")).lower() in ("true", "1")
+        scheme = "https" if tls else "http"
+        return f"{scheme}://{auth}{host_s}:{port_i}"
     if t in ("socks5", "socks"):
         return f"socks5://{auth}{host_s}:{port_i}"
     return None
@@ -158,6 +161,13 @@ async def measure_url_test_mihomo(
     """
     启动临时 Mihomo，调用 GET /proxies/hub-probe/delay 测量延迟（毫秒）。
     """
+    import copy
+    # Create a deep copy to avoid modifying the original proxy yaml definition
+    proxy = copy.deepcopy(proxy)
+    # Ensure server address does not cause parsing issues when prefixed or modified later
+    if proxy.get("name"):
+        proxy["name"] = "hub-probe"
+    
     ec_port = _pick_loopback_port()
     cfg = _build_mihomo_config(proxy, ec_port)
     tmp = tempfile.mkdtemp(prefix="clashhub_mihomo_")
@@ -215,7 +225,7 @@ async def measure_url_test_mihomo(
                 hint = "（节点可能不可用，或协议字段与 Mihomo 不兼容；可在 Mihomo 客户端中单独验证该节点）"
             return False, None, f"Mihomo HTTP {r.status_code}: {msg}{hint}"
 
-        if data.get("message"):
+        if isinstance(data, dict) and data.get("message"):
             return False, None, str(data["message"])
 
         d = data.get("delay")
@@ -231,8 +241,14 @@ async def measure_url_test_mihomo(
     except FileNotFoundError:
         return False, None, f"找不到 Mihomo: {exe}"
     except Exception as e:
-        logger.warning("Mihomo URL 测试异常: %s", e)
-        return False, None, str(e)
+        import traceback
+        err_msg = str(e)
+        if not err_msg:
+            err_msg = repr(e)
+        logger.error(f"Mihomo URL 测试严重异常: {err_msg} (type={type(e)})\n{traceback.format_exc()}")
+        if isinstance(e, NotImplementedError) and sys.platform == "win32":
+            err_msg = "在当前服务器环境中无法调用外部命令。这通常是因为在 Windows 下运行 Uvicorn 时使用了不支持子进程的事件循环。请在启动参数中加入 --loop asyncio"
+        return False, None, err_msg
     finally:
         if proc and proc.returncode is None:
             proc.terminate()
@@ -269,7 +285,8 @@ async def probe_single_proxy(
             ok, ms, err = await measure_url_test_httpx(pu, DEFAULT_URL_TEST, timeout=t_budget)
             if ok:
                 return True, ms, None, "httpx"
-
+            # httpx test failed, do not return yet, let it fallback to mihomo
+            
     exe = resolve_mihomo_executable(mihomo_path)
     if exe:
         ok, ms, err = await measure_url_test_mihomo(proxy, exe, DEFAULT_URL_TEST, timeout=t_budget)

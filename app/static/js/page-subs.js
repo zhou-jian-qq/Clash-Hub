@@ -173,7 +173,7 @@ async function checkSub(id) {
         else if (r.tcp_tested && !r.available)
             tcpLine = '\n已尝试探测（失败，见上文说明）';
         const detail = (r.message || '') + tcpLine + '\n\n' + state + '\n请用左侧开关自行调整启用/禁用。';
-        alert('「' + (r.name || '') + '」\n\n' + head + '\n' + detail);
+        showResultModal('「' + (r.name || '') + '」 ' + head, detail);
     } catch (e) { toast(e.message, 'error'); }
 }
 

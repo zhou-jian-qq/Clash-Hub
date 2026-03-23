@@ -66,7 +66,30 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 
 function escHtml(s) {
     if (s == null) return '';
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&gt;').replace(/>/g, '&gt;');
+}
+
+/** 统一的检测结果弹窗样式 */
+function showResultModal(title, content) {
+    const existing = document.getElementById('resultModal');
+    if (existing) existing.remove();
+    
+    // 把文字中的换行转换为 <br>
+    const safeTitle = escHtml(title);
+    const htmlContent = escHtml(content).replace(/\n/g, '<br/>');
+
+    const html = `<div class="modal-bg" id="resultModal" onclick="if(event.target===this)this.remove()">
+    <div class="card w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 border-b border-slate-700/50 pb-2">${safeTitle}</h3>
+      <div class="text-sm text-slate-300 mb-6 leading-relaxed">
+        ${htmlContent}
+      </div>
+      <div class="flex justify-end">
+        <button type="button" class="btn btn-primary px-6" onclick="document.getElementById('resultModal').remove()">确定</button>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
 }
 
 function initTheme() {

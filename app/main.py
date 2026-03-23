@@ -1,5 +1,12 @@
 """Clash Hub FastAPI 应用入口。"""
+import sys
 import asyncio
+
+# 必须在所有 imports 前最早执行这个操作
+if sys.platform == "win32":
+    # uvicorn reloader will spawn subprocesses which lose the policy if not set at module level
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import logging
 import os
 import uuid as uuid_mod
