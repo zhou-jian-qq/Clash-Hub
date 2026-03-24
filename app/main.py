@@ -1265,5 +1265,5 @@ async def chrome_devtools_wellknown():
 async def index(request: Request):
     index_path = os.path.join(_TEMPLATES_DIR, "index.html")
     if os.path.exists(index_path):
-        return templates.TemplateResponse(name="index.html", context={"request": request})
+        return templates.TemplateResponse(request=request, name="index.html", context={"request": request})
     return HTMLResponse("<h1>Clash Hub</h1><p>模板文件缺失</p>")
