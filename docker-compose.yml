@@ -1,6 +1,6 @@
 services:
   clash-hub:
-    build: .
+    image: ghcr.io/zhou-jian-qq/clash-hub:latest
     container_name: clash-hub
     ports:
       - "8080:8000"
@@ -8,5 +8,5 @@ services:
       - ./data:/app/data
     environment:
       - TZ=Asia/Shanghai
-      - ADMIN_PASSWORD=admin888
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     restart: always

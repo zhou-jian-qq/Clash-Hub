@@ -30,17 +30,22 @@ Clash 订阅聚合管理工具 —— 多源合一、智能重命名、流量监
 
 ### 方式一：Docker Compose (推荐)
 
-使用 Docker 部署是最简单且环境隔离的方式。
+使用 Docker 部署是最简单且环境隔离的方式。当前项目使用 GitHub Actions 自动构建并推送镜像，无需在服务器本地构建，大幅提升部署速度。
 
+1. **准备环境变量**
+在部署目录下创建 `.env` 文件，配置管理后台密码：
 ```bash
-git clone <repo-url> && cd "Clash Hub"
+echo "ADMIN_PASSWORD=你的强密码" > .env
+```
 
-# 可选：修改默认密码，编辑 docker-compose.yml 中的 ADMIN_PASSWORD
-
+2. **拉取并启动服务**
+确保当前目录下有 `docker-compose.yml` 文件，执行以下命令：
+```bash
+docker compose pull
 docker compose up -d
 ```
 
-启动后，访问 `http://<你的IP>:8080` 进入管理后台，默认密码为：`admin888`。
+启动后，访问 `http://<你的IP>:8080` 进入管理后台，密码为你刚刚在 `.env` 中设置的值。
 
 ### 方式二：本地直接运行 (Windows / Linux / macOS)
 
