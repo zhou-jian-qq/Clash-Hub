@@ -115,7 +115,21 @@ async function copyGenericSub() {
     try {
         await navigator.clipboard.writeText(u);
         toast('已复制通用订阅链接');
-    } catch (_) { toast('复制失败', 'error'); }
+    } catch (err) {
+        // Fallback for non-HTTPS environments
+        const input = document.createElement('input');
+        input.setAttribute('value', u);
+        document.body.appendChild(input);
+        input.select();
+        try {
+            document.execCommand('copy');
+            toast('已复制通用订阅链接');
+        } catch (err2) {
+            toast('复制失败，请手动复制', 'error');
+        } finally {
+            document.body.removeChild(input);
+        }
+    }
 }
 
 async function resetSubUuid() {
