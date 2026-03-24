@@ -112,24 +112,7 @@ function openShadowrocket() { window.location.href = shadowrocketImportUrl(); }
 async function copyGenericSub() {
     const u = window._subBaseUrl;
     if (!u) { toast('请先加载首页', 'error'); return; }
-    try {
-        await navigator.clipboard.writeText(u);
-        toast('已复制通用订阅链接');
-    } catch (err) {
-        // Fallback for non-HTTPS environments
-        const input = document.createElement('input');
-        input.setAttribute('value', u);
-        document.body.appendChild(input);
-        input.select();
-        try {
-            document.execCommand('copy');
-            toast('已复制通用订阅链接');
-        } catch (err2) {
-            toast('复制失败，请手动复制', 'error');
-        } finally {
-            document.body.removeChild(input);
-        }
-    }
+    await copyText(u, '已复制通用订阅链接');
 }
 
 async function resetSubUuid() {

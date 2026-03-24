@@ -116,21 +116,7 @@ async function previewPresetSkeleton(name) {
         copyBtn.className = 'btn btn-primary btn-sm';
         copyBtn.textContent = '复制全部';
         copyBtn.onclick = () => {
-            navigator.clipboard.writeText(ta.value).then(() => toast('已复制')).catch((err) => {
-                // Fallback for non-HTTPS environments
-                const input = document.createElement('textarea');
-                input.value = ta.value;
-                document.body.appendChild(input);
-                input.select();
-                try {
-                    document.execCommand('copy');
-                    toast('已复制');
-                } catch (err2) {
-                    toast('复制失败，请手动复制', 'error');
-                } finally {
-                    document.body.removeChild(input);
-                }
-            });
+            copyText(ta.value, '已复制');
         };
         const close2 = document.createElement('button');
         close2.type = 'button';
@@ -329,21 +315,7 @@ function setPreviewMode(mode) {
 function copyPreviewYaml() {
     const t = _lastPreview && _lastPreview.yaml != null ? String(_lastPreview.yaml) : '';
     if (!t) { toast('暂无 YAML，请先刷新预览', 'error'); return; }
-    navigator.clipboard.writeText(t).then(() => toast('已复制 YAML')).catch((err) => {
-        // Fallback for non-HTTPS environments
-        const input = document.createElement('textarea');
-        input.value = t;
-        document.body.appendChild(input);
-        input.select();
-        try {
-            document.execCommand('copy');
-            toast('已复制 YAML');
-        } catch (err2) {
-            toast('复制失败，请手动复制', 'error');
-        } finally {
-            document.body.removeChild(input);
-        }
-    });
+    copyText(t, '已复制 YAML');
 }
 
 function applyPreviewToDom(d) {

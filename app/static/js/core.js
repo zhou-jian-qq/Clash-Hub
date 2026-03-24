@@ -35,6 +35,44 @@ function toast(msg, type = 'success') {
     setTimeout(() => d.remove(), 3000);
 }
 
+function copyTextFallback(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    // 隐藏文本框，防止页面滚动
+    textArea.style.position = "fixed";
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            toast('已复制');
+        } else {
+            toast('复制失败: 浏览器阻止', 'error');
+        }
+    } catch (err) {
+        toast('复制失败: ' + err.message, 'error');
+    }
+    document.body.removeChild(textArea);
+}
+
+async function copyText(text, successMsg = '已复制') {
+    if (navigator.clipboard && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(text);
+            toast(successMsg);
+            return;
+        } catch (err) {
+            console.warn('navigator.clipboard 失败，尝试 fallback', err);
+        }
+    }
+    // 回退方案
+    copyTextFallback(text);
+}
+
 function formatBytes(b) {
     if (!b || b <= 0) return '0 B';
     const u = ['B', 'KB', 'MB', 'GB', 'TB'];
