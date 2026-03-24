@@ -36,6 +36,8 @@ async function loadHome() {
         const s = await api('/api/settings');
         window._subBaseUrl = buildSubscriptionUrl(s.sub_uuid);
         renderHomeClientPanels();
+        const genericUrlInput = document.getElementById('genericSubUrlInput');
+        if (genericUrlInput) genericUrlInput.value = window._subBaseUrl;
     } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -120,6 +122,9 @@ async function resetSubUuid() {
     try {
         const d = await api('/api/settings/reset-uuid', { method: 'POST', body: '{}' });
         window._subBaseUrl = buildSubscriptionUrl(d.sub_uuid);
+        renderHomeClientPanels();
+        const genericUrlInput = document.getElementById('genericSubUrlInput');
+        if (genericUrlInput) genericUrlInput.value = window._subBaseUrl;
         toast('已重置密钥');
     } catch (e) { toast(e.message, 'error'); }
 }

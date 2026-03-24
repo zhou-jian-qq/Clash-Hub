@@ -22,5 +22,11 @@
                                 <button type="button" class="btn btn-primary flex-1"
                                     onclick="copyGenericSub()">复制通用订阅链接</button>
                             </div>
+                            
+                            <!-- 文本框展示订阅地址，方便手动复制 -->
+                            <div class="mt-4">
+                                <label for="genericSubUrlInput" class="block text-xs font-medium text-slate-400 mb-1">通用订阅地址 (可手动复制)</label>
+                                <input type="text" id="genericSubUrlInput" readonly class="input w-full text-xs text-slate-300 bg-slate-800/50" onclick="this.select()" />
+                            </div>
                         </div>
                     </div>
