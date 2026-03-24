@@ -353,7 +353,7 @@ proxy-groups:
     type: url-test
     proxies: []
     url: "https://www.gstatic.com/generate_204"
-    interval: 3600
+    interval: 300
 rule-providers: {}
 rules:
   - MATCH,🚀 节点选择

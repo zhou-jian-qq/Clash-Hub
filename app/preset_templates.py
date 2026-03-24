@@ -113,7 +113,7 @@ HOME_PREPEND = ["DIRECT", "REJECT", SELECT, AUTO]
 # ═══════════════════════════════════════════
 SIMPLE_GROUPS = [
     _g(SELECT, "select", [AUTO, "DIRECT", "REJECT"]),
-    _g(AUTO, "url-test", [], url="https://www.gstatic.com/generate_204", interval=3600, lazy=False),
+    _g(AUTO, "url-test", [], url="https://www.gstatic.com/generate_204", interval=300, lazy=False),
     _g("🛑 广告拦截", "select", ["REJECT", "DIRECT", SELECT], include_all=False),
     _g("🏠 私有网络", "select", HOME_PREPEND),
     _g("🔒 国内服务", "select", HOME_PREPEND),
@@ -147,7 +147,7 @@ SIMPLE_RULES = [
 # ═══════════════════════════════════════════
 STANDARD_GROUPS = [
     _g(SELECT, "select", [AUTO, "DIRECT", "REJECT"]),
-    _g(AUTO, "url-test", [], url="https://www.gstatic.com/generate_204", interval=3600, lazy=False),
+    _g(AUTO, "url-test", [], url="https://www.gstatic.com/generate_204", interval=300, lazy=False),
     _g("🛑 广告拦截", "select", ["REJECT", "DIRECT", SELECT], include_all=False),
     _g("🤖 AI 服务", "select", STD_PREPEND),
     _g("📹 油管视频", "select", STD_PREPEND),
@@ -212,7 +212,7 @@ STANDARD_RULES = [
 # ═══════════════════════════════════════════
 FULL_GROUPS = [
     _g(SELECT, "select", [AUTO, "DIRECT", "REJECT"]),
-    _g(AUTO, "url-test", [], url="https://www.gstatic.com/generate_204", interval=3600, lazy=False),
+    _g(AUTO, "url-test", [], url="https://www.gstatic.com/generate_204", interval=300, lazy=False),
     _g("🛑 广告拦截", "select", ["REJECT", "DIRECT", SELECT], include_all=False),
     _g("🤖 AI 服务", "select", STD_PREPEND),
     _g("📹 油管视频", "select", STD_PREPEND),
