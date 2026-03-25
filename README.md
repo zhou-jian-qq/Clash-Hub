@@ -99,6 +99,7 @@ uvicorn main:app --host 127.0.0.1 --port 8000
 ## 📂 目录结构
 
 ```text
+├── .github/                 # GitHub Actions 自动构建工作流
 ├── app/
 │   ├── main.py              # FastAPI 主路由
 │   ├── database.py          # 数据库引擎与连接
@@ -110,9 +111,15 @@ uvicorn main:app --host 127.0.0.1 --port 8000
 │   ├── proxy_latency.py     # 节点测速与连通性检测
 │   ├── proxy_uri.py         # 节点链接解析
 │   ├── scheduler.py         # 定时任务 (流量刷新)
-│   ├── static/              # 静态资源 (CSS, JS)
-│   └── templates/           # 页面模板 (HTML)
+│   ├── static/              # 静态资源
+│   │   ├── css/             # CSS 样式 (分模块)
+│   │   └── js/              # JS 逻辑 (按页面拆分)
+│   └── templates/           # 页面模板 (HTML/Jinja2)
+│       ├── index.html       # SPA 页面入口
+│       ├── base.html        # 基础 HTML 结构
+│       └── partials/        # 页面各个 Tab 及局部组件拆分
 ├── data/                    # SQLite 数据库持久化目录 (包含应用数据)
+├── .env.example             # 环境变量配置模板
 ├── Dockerfile               # Docker 构建配置
 ├── docker-compose.yml       # Docker 编排配置
 └── requirements.txt         # Python 依赖清单
