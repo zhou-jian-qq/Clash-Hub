@@ -38,9 +38,9 @@ async def get_setting(key: str, default: str = "") -> str:
         return result.value if result else default
 
 
-async def refresh_subscriptions():
+async def refresh_subscriptions(source: str = "manual"):
     """刷新所有启用订阅的流量数据和节点数"""
-    logger.info("开始刷新订阅数据...")
+    logger.info("开始刷新订阅数据... (来源: %s)", source)
     async with async_session() as session:
         result = await session.execute(
             select(Subscription).where(Subscription.enabled == True)  # noqa: E712
@@ -108,7 +108,8 @@ async def apply_refresh_interval_job():
             hours=hours,
             id=REFRESH_JOB_ID,
             replace_existing=True,
-            next_run_time=None,
+            next_run_time=datetime.now(timezone.utc),
+            kwargs={"source": "cron_job"}
         )
         logger.info("定时任务已注册 (每 %d 小时)", hours)
     else:
