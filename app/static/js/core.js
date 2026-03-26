@@ -4,14 +4,13 @@
  * - 依赖：无（先于其它 /static/js/* 加载）；内联 HTML 通过全局函数名调用
  */
 const API = '';
-let TOKEN = localStorage.getItem('token') || '';
 let _subsCache = [];
 let _importBatchesCache = [];
 let _previewTimer = null;
 let _previewMode = 'yaml';
 let _lastPreview = null;
 
-function headers() { return { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' }; }
+function headers() { return { 'Content-Type': 'application/json' }; }
 
 async function api(path, opts = {}) {
     // 避免浏览器对 GET /api/... 使用磁盘/内存缓存，导致批量操作后列表仍是旧 enabled 状态
@@ -133,8 +132,11 @@ function showResultModal(title, content) {
 function initTheme() {
     const t = localStorage.getItem('ch_theme') || 'dark';
     document.documentElement.setAttribute('data-theme', t);
-    document.getElementById('iconSun').classList.toggle('hidden', t !== 'dark');
-    document.getElementById('iconMoon').classList.toggle('hidden', t === 'dark');
+    
+    const iconSun = document.getElementById('iconSun');
+    const iconMoon = document.getElementById('iconMoon');
+    if (iconSun) iconSun.classList.toggle('hidden', t !== 'dark');
+    if (iconMoon) iconMoon.classList.toggle('hidden', t === 'dark');
 }
 
 function toggleTheme() {
@@ -142,8 +144,11 @@ function toggleTheme() {
     const next = cur === 'dark' ? 'light' : 'dark';
     localStorage.setItem('ch_theme', next);
     document.documentElement.setAttribute('data-theme', next);
-    document.getElementById('iconSun').classList.toggle('hidden', next !== 'dark');
-    document.getElementById('iconMoon').classList.toggle('hidden', next === 'dark');
+    
+    const iconSun = document.getElementById('iconSun');
+    const iconMoon = document.getElementById('iconMoon');
+    if (iconSun) iconSun.classList.toggle('hidden', next !== 'dark');
+    if (iconMoon) iconMoon.classList.toggle('hidden', next === 'dark');
 }
 
 initTheme();
@@ -156,16 +161,13 @@ async function doLogin() {
             body: JSON.stringify({ password: pwd })
         });
         if (!r.ok) { document.getElementById('loginErr').textContent = '密码错误'; document.getElementById('loginErr').classList.remove('hidden'); return; }
-        const d = await r.json();
-        TOKEN = d.token;
-        localStorage.setItem('token', TOKEN);
-        showMain();
+        window.location.href = '/';
     } catch (e) { toast(e.message, 'error'); }
 }
 
-function doLogout() {
-    TOKEN = '';
-    localStorage.removeItem('token');
-    document.getElementById('mainPage').classList.add('hidden');
-    document.getElementById('loginPage').classList.remove('hidden');
+async function doLogout() {
+    try {
+        await fetch(API + '/api/logout', { method: 'POST' });
+        window.location.href = '/login';
+    } catch (e) { toast(e.message, 'error'); }
 }

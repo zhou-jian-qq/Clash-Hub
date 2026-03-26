@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 SECRET_KEY = os.urandom(32).hex()
@@ -29,13 +29,30 @@ def create_access_token(data: dict) -> str:
 
 
 async def require_admin(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ):
-    if credentials is None:
+    token = request.cookies.get("ch_token")
+    if not token and credentials:
+        token = credentials.credentials
+        
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
     try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("role") != "admin":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token 无效或已过期")
+
+async def get_current_user_optional(request: Request):
+    token = request.cookies.get("ch_token")
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") == "admin":
+            return payload
+    except JWTError:
+        pass
+    return None

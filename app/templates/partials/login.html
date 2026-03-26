@@ -1,5 +1,18 @@
 {# 登录区：密码输入、doLogin、错误提示 #}
-        <div id="loginPage" class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative flex items-center justify-center min-h-screen p-4">
+            <div class="absolute top-4 right-4 z-20">
+                <button type="button" class="btn btn-secondary btn-sm p-2" title="切换主题" onclick="toggleTheme()"
+                    id="themeBtn" aria-label="切换主题">
+                    <svg id="iconSun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <svg id="iconMoon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+            </div>
             <div class="login-deco"></div>
             <div class="card w-full max-w-sm text-center relative z-10">
                 <img src="/static/favicon.svg" alt="" width="56" height="56" class="app-logo mx-auto mb-3 shadow-lg"

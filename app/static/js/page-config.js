@@ -75,7 +75,7 @@ async function renderConfigTemplates() {
 async function previewPresetSkeleton(name) {
     try {
         const r = await fetch(API + '/api/templates/preset-preview/' + encodeURIComponent(name), {
-            headers: { Authorization: 'Bearer ' + TOKEN },
+            headers: headers(),
         });
         if (!r.ok) {
             const j = await r.json().catch(() => ({}));

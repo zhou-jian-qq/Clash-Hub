@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 import yaml
 from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import init_db, get_db
 from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode
-from auth import verify_password, create_access_token, require_admin
+from auth import verify_password, create_access_token, require_admin, get_current_user_optional
 from aggregator import (
     fetch_subscription_content,
     parse_proxies,
@@ -312,13 +312,20 @@ async def _hydrate_subscription_fetch(sub: Subscription, db: AsyncSession) -> No
 # ═══════════════════ Auth ═══════════════════
 
 @app.post("/api/login")
-async def login(req: Request):
+async def login(req: Request, response: Response):
     body = await req.json()
     password = body.get("password", "")
     if not verify_password(password):
         raise HTTPException(status_code=401, detail="密码错误")
     token = create_access_token({"role": "admin"})
+    response.set_cookie(key="ch_token", value=token, httponly=True, max_age=86400)
     return {"token": token}
+
+
+@app.post("/api/logout")
+async def logout(response: Response):
+    response.delete_cookie("ch_token")
+    return {"message": "已登出"}
 
 
 # ═══════════════════ Subscriptions CRUD ═══════════════════
@@ -1261,9 +1268,25 @@ async def chrome_devtools_wellknown():
     return JSONResponse({})
 
 
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, user=Depends(get_current_user_optional)):
+    if user:
+        return RedirectResponse(url="/", status_code=302)
+    login_path = os.path.join(_TEMPLATES_DIR, "login_page.html")
+    if os.path.exists(login_path):
+        return templates.TemplateResponse(request=request, name="login_page.html", context={"request": request})
+    return HTMLResponse("<h1>Clash Hub</h1><p>模板文件缺失</p>")
+
+
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    index_path = os.path.join(_TEMPLATES_DIR, "index.html")
-    if os.path.exists(index_path):
-        return templates.TemplateResponse(request=request, name="index.html", context={"request": request})
+@app.get("/overview", response_class=HTMLResponse)
+@app.get("/subs", response_class=HTMLResponse)
+@app.get("/imports", response_class=HTMLResponse)
+@app.get("/config", response_class=HTMLResponse)
+async def app_root(request: Request, user=Depends(get_current_user_optional)):
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    app_path = os.path.join(_TEMPLATES_DIR, "app_page.html")
+    if os.path.exists(app_path):
+        return templates.TemplateResponse(request=request, name="app_page.html", context={"request": request})
     return HTMLResponse("<h1>Clash Hub</h1><p>模板文件缺失</p>")
