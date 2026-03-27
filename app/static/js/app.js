@@ -18,6 +18,7 @@ function switchPage(name, el_or_push = true) {
     if (name === 'subs') loadSubs();
     if (name === 'imports') loadImportBatches();
     if (name === 'config') loadConfigPage();
+    if (name === 'logs') loadSubLogs(1);
 
     // 兼容原有的 el 参数
     let push = typeof el_or_push === 'boolean' ? el_or_push : true;
@@ -37,6 +38,7 @@ function handleRoute() {
     else if (path.startsWith('/subs')) name = 'subs';
     else if (path.startsWith('/imports')) name = 'imports';
     else if (path.startsWith('/config')) name = 'config';
+    else if (path.startsWith('/logs')) name = 'logs';
     switchPage(name, false);
 }
 

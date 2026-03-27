@@ -96,3 +96,20 @@ async def migrate_inline_subscriptions_to_import_nodes() -> None:
         session.add(Setting(key="migration_v2_import_nodes_done", value="1"))
         await session.commit()
         logger.info("迁移：已将 %d 条非机场订阅迁入节点导入", len(to_move))
+
+
+async def ensure_sub_access_logs_table() -> None:
+    """确保 sub_access_logs 表存在（旧库升级时建表）。"""
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            """
+            CREATE TABLE IF NOT EXISTS sub_access_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip          VARCHAR(64) NOT NULL,
+                real_ip     VARCHAR(64),
+                user_agent  TEXT,
+                accessed_at DATETIME NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        ))
+        logger.info("sub_access_logs 表已就绪")

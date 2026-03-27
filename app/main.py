@@ -18,11 +18,11 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import init_db, get_db
-from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode
+from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode, SubAccessLog
 from auth import verify_password, create_access_token, require_admin, get_current_user_optional
 from aggregator import (
     fetch_subscription_content,
@@ -37,7 +37,7 @@ from aggregator import (
 )
 from preset_templates import PRESETS, get_preset_names
 from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri, is_remote_subscription_url
-from migrations import ensure_subscription_updated_at_column, migrate_inline_subscriptions_to_import_nodes
+from migrations import ensure_subscription_updated_at_column, migrate_inline_subscriptions_to_import_nodes, ensure_sub_access_logs_table
 from scheduler import (
     start_scheduler,
     stop_scheduler,
@@ -58,6 +58,7 @@ SUBSCRIPTION_PROFILE_FILENAME = f"{SUBSCRIPTION_PROFILE_NAME}.yaml"
 async def lifespan(app: FastAPI):
     await init_db()
     await ensure_subscription_updated_at_column()
+    await ensure_sub_access_logs_table()
     await _ensure_defaults()
     await _migrate_legacy_custom_template()
     await migrate_inline_subscriptions_to_import_nodes()
@@ -1048,6 +1049,24 @@ async def get_traffic(db: AsyncSession = Depends(get_db), _=Depends(require_admi
 
 # ═══════════════════ 聚合订阅输出 (无需鉴权) ═══════════════════
 
+
+def _extract_real_ip(request: Request) -> tuple[str, str | None]:
+    """
+    返回 (直连IP, 真实IP)。
+    直连IP = request.client.host（TCP 连接来源）。
+    真实IP = X-Forwarded-For 第一项 或 X-Real-IP（反向代理透传），未设置时为 None。
+    """
+    direct_ip = request.client.host if request.client else "unknown"
+    xff = request.headers.get("X-Forwarded-For", "").strip()
+    if xff:
+        real_ip = xff.split(",")[0].strip()
+        return direct_ip, real_ip
+    xri = request.headers.get("X-Real-IP", "").strip()
+    if xri:
+        return direct_ip, xri
+    return direct_ip, None
+
+
 async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
     """
     生成与 /sub 一致的 YAML，并返回统计信息（供 /api/preview）。
@@ -1178,10 +1197,20 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
 
 
 @app.get("/sub/{sub_uuid}")
-async def get_aggregated_sub(sub_uuid: str, db: AsyncSession = Depends(get_db)):
+async def get_aggregated_sub(sub_uuid: str, request: Request, db: AsyncSession = Depends(get_db)):
     stored_uuid = await _get_setting(db, "sub_uuid", "")
     if sub_uuid != stored_uuid:
         raise HTTPException(403, "无效的订阅链接")
+
+    direct_ip, real_ip = _extract_real_ip(request)
+    user_agent = request.headers.get("User-Agent")
+    log_entry = SubAccessLog(
+        ip=direct_ip,
+        real_ip=real_ip,
+        user_agent=user_agent,
+    )
+    db.add(log_entry)
+    await db.commit()
 
     config_yaml, _meta = await _build_aggregated_config_yaml(db)
     if config_yaml.strip().startswith("# 无启用的机场订阅或导入节点"):
@@ -1278,11 +1307,76 @@ async def login_page(request: Request, user=Depends(get_current_user_optional)):
     return HTMLResponse("<h1>Clash Hub</h1><p>模板文件缺失</p>")
 
 
+@app.get("/api/sub-access-logs")
+async def list_sub_access_logs(
+    page: int = 1,
+    page_size: int = 50,
+    ip: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    from datetime import date as _date, timedelta
+    page = max(1, page)
+    page_size = min(max(1, page_size), 200)
+    offset = (page - 1) * page_size
+
+    conditions = []
+    if ip and ip.strip():
+        pat = f"%{ip.strip()}%"
+        conditions.append(
+            (SubAccessLog.ip.like(pat)) | (SubAccessLog.real_ip.like(pat))
+        )
+    if date_from and date_from.strip():
+        try:
+            dt_from = datetime.strptime(date_from.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            conditions.append(SubAccessLog.accessed_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to and date_to.strip():
+        try:
+            dt_to = datetime.strptime(date_to.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            dt_to = dt_to + timedelta(days=1)
+            conditions.append(SubAccessLog.accessed_at < dt_to)
+        except ValueError:
+            pass
+
+    base_q = select(SubAccessLog)
+    count_q = select(func.count()).select_from(SubAccessLog)
+    if conditions:
+        from sqlalchemy import and_
+        combined = and_(*conditions)
+        base_q = base_q.where(combined)
+        count_q = count_q.where(combined)
+
+    total_result = await db.execute(count_q)
+    total = total_result.scalar() or 0
+    rows_result = await db.execute(
+        base_q.order_by(SubAccessLog.id.desc()).offset(offset).limit(page_size)
+    )
+    rows = rows_result.scalars().all()
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [r.to_dict() for r in rows],
+    }
+
+
+@app.delete("/api/sub-access-logs")
+async def clear_sub_access_logs(db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    await db.execute(text("DELETE FROM sub_access_logs"))
+    await db.commit()
+    return {"ok": True}
+
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/overview", response_class=HTMLResponse)
 @app.get("/subs", response_class=HTMLResponse)
 @app.get("/imports", response_class=HTMLResponse)
 @app.get("/config", response_class=HTMLResponse)
+@app.get("/logs", response_class=HTMLResponse)
 async def app_root(request: Request, user=Depends(get_current_user_optional)):
     if not user:
         return RedirectResponse(url="/login", status_code=302)

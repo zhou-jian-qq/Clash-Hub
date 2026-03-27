@@ -1,0 +1,74 @@
+{# 订阅访问日志：展示每次 /sub 拉取的 IP、UA 和时间 #}
+                    <div id="page-logs" class="hidden">
+                        <div class="mb-4 space-y-3">
+                            <h2 class="text-xl font-bold">访问日志</h2>
+                            <div
+                                class="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 pt-2 border-t border-slate-200/80 dark:border-slate-700/60">
+                                <p class="text-sm text-slate-500 dark:text-slate-400">
+                                    记录每次客户端拉取订阅链接的 IP 和客户端信息
+                                </p>
+                                <button type="button" class="btn btn-outline-danger btn-sm"
+                                    onclick="clearSubLogs()">清空日志</button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-end gap-3 py-3 border-t border-slate-200/80 dark:border-slate-700/60">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs" style="color:var(--muted)">开始日期</label>
+                                <input type="date" id="logsDateFrom" style="width:auto; min-width:9rem; cursor:pointer"
+                                    onclick="this.showPicker && this.showPicker()">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs" style="color:var(--muted)">结束日期</label>
+                                <input type="date" id="logsDateTo" style="width:auto; min-width:9rem; cursor:pointer"
+                                    onclick="this.showPicker && this.showPicker()">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs" style="color:var(--muted)">IP 地址</label>
+                                <input type="text" id="logsIpFilter" placeholder="输入 IP 地址"
+                                    onkeydown="if(event.key==='Enter') applyLogsFilter()"
+                                    style="width:10rem">
+                            </div>
+                            <div class="flex gap-2" style="padding-bottom:0.65rem">
+                                <button type="button" class="btn btn-primary btn-sm"
+                                    onclick="applyLogsFilter()">查询</button>
+                                <button type="button" class="btn btn-ghost btn-sm"
+                                    onclick="resetLogsFilter()">重置</button>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-slate-50 dark:bg-slate-800 text-left text-slate-600 dark:text-slate-300">
+                                        <th class="px-4 py-2 font-medium whitespace-nowrap">#</th>
+                                        <th class="px-4 py-2 font-medium whitespace-nowrap">时间</th>
+                                        <th class="px-4 py-2 font-medium whitespace-nowrap">直连 IP</th>
+                                        <th class="px-4 py-2 font-medium whitespace-nowrap">真实 IP
+                                            <span class="text-xs font-normal text-slate-400">(反代透传)</span>
+                                        </th>
+                                        <th class="px-4 py-2 font-medium">客户端 / User-Agent</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="logsTableBody">
+                                    <tr>
+                                        <td colspan="5"
+                                            class="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                                            加载中…
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div id="logsPagination" class="mt-3 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+                            <span id="logsTotalLabel"></span>
+                            <div class="flex gap-2">
+                                <button type="button" id="logsPrevBtn" class="btn btn-ghost btn-sm"
+                                    onclick="loadSubLogs(window._logsPage - 1)" disabled>上一页</button>
+                                <span id="logsPageLabel" class="self-center"></span>
+                                <button type="button" id="logsNextBtn" class="btn btn-ghost btn-sm"
+                                    onclick="loadSubLogs(window._logsPage + 1)" disabled>下一页</button>
+                            </div>
+                        </div>
+                    </div>

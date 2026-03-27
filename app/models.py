@@ -139,3 +139,24 @@ class CustomTemplate(Base):
             "name": self.name,
             "created_at": _iso_utc_api(self.created_at),
         }
+
+
+class SubAccessLog(Base):
+    """订阅拉取访问日志"""
+
+    __tablename__ = "sub_access_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ip: Mapped[str] = mapped_column(String(64))
+    real_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    accessed_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "ip": self.ip,
+            "real_ip": self.real_ip,
+            "user_agent": self.user_agent,
+            "accessed_at": _iso_utc_api(self.accessed_at),
+        }

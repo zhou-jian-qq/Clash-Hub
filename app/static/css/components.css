@@ -461,3 +461,21 @@ textarea:focus {
     background: var(--accent);
     color: #fff;
 }
+
+/* 日期选择器弹出日历面板跟随主题 */
+:root[data-theme="dark"] input[type="date"],
+:root[data-theme="dark"] input[type="datetime-local"] {
+    color-scheme: dark;
+}
+
+:root[data-theme="light"] input[type="date"],
+:root[data-theme="light"] input[type="datetime-local"] {
+    color-scheme: light;
+}
+
+/* 暗黑模式下日历图标反转为白色，避免图标在深色背景上不可见 */
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
