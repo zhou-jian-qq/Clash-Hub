@@ -49,7 +49,8 @@ async def refresh_subscriptions(source: str = "manual"):
 
         auto_disable_expiry = (await get_setting("auto_disable_on_expiry", "true")) == "true"
         auto_disable_empty = (await get_setting("auto_disable_on_empty", "true")) == "true"
-        timeout = int(await get_setting("fetch_timeout", "15"))
+        # 与后台「拉取超时」一致；未配置时使用 30 秒
+        timeout = int(await get_setting("fetch_timeout", "30"))
         mihomo_path = await get_setting("mihomo_path", "")
 
         for sub in subs:
@@ -70,7 +71,13 @@ async def refresh_subscriptions(source: str = "manual"):
                     now_ts = int(time.time())
                     if not check_result["ok"]:
                         sub.enabled = False
-                        logger.info("订阅 [%s] 节点获取失败或报错, 自动禁用: %s", sub.name, check_result["message"])
+                        err_detail = check_result.get("error") or check_result.get("message") or ""
+                        logger.info(
+                            "订阅 [%s] 节点获取失败或报错, 自动禁用: message=%s error=%s",
+                            sub.name,
+                            check_result.get("message"),
+                            err_detail,
+                        )
                     elif auto_disable_expiry and sub.expire > 0 and sub.expire < now_ts:
                         sub.enabled = False
                         logger.info("订阅 [%s] 已过期, 自动禁用", sub.name)
@@ -80,10 +87,15 @@ async def refresh_subscriptions(source: str = "manual"):
 
                 logger.info("刷新 [%s] 成功: %d 节点", sub.name, check_result["node_count"])
             except Exception as e:
-                logger.warning("刷新 [%s] 失败: %s", sub.name, e)
+                logger.exception("刷新 [%s] 失败: %s", sub.name, e)
                 if sub.auto_disable:
                     sub.enabled = False
-                    logger.info("订阅 [%s] 获取异常, 自动禁用: %s", sub.name, e)
+                    logger.info(
+                        "订阅 [%s] 获取异常, 自动禁用: %r (type=%s)",
+                        sub.name,
+                        e,
+                        type(e).__name__,
+                    )
 
         await session.commit()
     logger.info("订阅数据刷新完成")

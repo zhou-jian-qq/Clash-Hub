@@ -214,7 +214,7 @@ async function loadSettings() {
         document.getElementById('s_include').value = s.include_types || '';
         document.getElementById('s_exclude').value = s.exclude_types || '';
         document.getElementById('s_keywords').value = s.exclude_keywords || '';
-        document.getElementById('s_timeout').value = s.fetch_timeout || '15';
+        document.getElementById('s_timeout').value = s.fetch_timeout || '30';
         document.getElementById('s_refresh_hours').value = s.refresh_interval_hours != null && s.refresh_interval_hours !== '' ? s.refresh_interval_hours : '6';
         document.getElementById('s_mihomo').value = s.mihomo_path || '';
         document.getElementById('s_autoExpiry').checked = s.auto_disable_on_expiry !== 'false';

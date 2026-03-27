@@ -97,7 +97,7 @@ async def _ensure_defaults():
             "include_types": "",
             "exclude_types": "",
             "exclude_keywords": "剩余流量,官网,重置,套餐到期,建议",
-            "fetch_timeout": "15",
+            "fetch_timeout": "30",
             "mihomo_path": "",
             "auto_disable_on_expiry": "true",
             "auto_disable_on_empty": "true",
@@ -296,7 +296,7 @@ async def _set_all_imported_nodes_enabled(db: AsyncSession, batch_id: int, enabl
 
 async def _hydrate_subscription_fetch(sub: Subscription, db: AsyncSession) -> None:
     """首次拉取并填充流量与节点数（失败时仅打日志，仍保留订阅）。"""
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     try:
         content, userinfo = await fetch_subscription_content(sub.url, timeout)
         proxies = parse_proxies(content)
@@ -388,7 +388,7 @@ async def refresh_single(sub_id: int, db: AsyncSession = Depends(get_db), _=Depe
     sub = await db.get(Subscription, sub_id)
     if not sub:
         raise HTTPException(404, "订阅不存在")
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     try:
         content, userinfo = await fetch_subscription_content(sub.url, timeout)
         proxies = parse_proxies(content)
@@ -409,7 +409,7 @@ async def check_one_subscription(sub_id: int, db: AsyncSession = Depends(get_db)
     sub = await db.get(Subscription, sub_id)
     if not sub:
         raise HTTPException(404, "订阅不存在")
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     mihomo_path = await _get_setting(db, "mihomo_path", "")
     r = await check_subscription_availability(sub.url, sub.prefix or "", timeout, mihomo_path=mihomo_path)
     return {
@@ -430,7 +430,7 @@ async def get_subscription_nodes(sub_id: int, db: AsyncSession = Depends(get_db)
     sub = await db.get(Subscription, sub_id)
     if not sub:
         raise HTTPException(404, "订阅不存在")
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     try:
         content, _ = await fetch_subscription_content(sub.url, timeout)
         proxies = parse_proxies(content or "")
@@ -457,7 +457,7 @@ async def check_proxy_stateless(req: Request, db: AsyncSession = Depends(get_db)
     if not proxy_yaml:
         raise HTTPException(400, "缺少 proxy_yaml 参数")
     
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     mihomo_path = await _get_setting(db, "mihomo_path", "")
     
     try:
@@ -569,7 +569,7 @@ async def batch_check_subscriptions(req: Request, db: AsyncSession = Depends(get
     subs = list(result.scalars().all())
     if ids_filter is not None and not subs:
         raise HTTPException(404, "未找到所选订阅")
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     mihomo_path = await _get_setting(db, "mihomo_path", "")
 
     async def _check_row(s: Subscription):
@@ -859,7 +859,7 @@ async def check_imported_node(node_id: int, db: AsyncSession = Depends(get_db), 
     batch = await db.get(ImportBatch, n.batch_id)
     if not batch:
         raise HTTPException(404, "批次不存在")
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     mihomo_path = await _get_setting(db, "mihomo_path", "")
     prefix = _subscription_batch_prefix(batch.name, n.sort_order)
     # 使用专用测速逻辑：始终对单节点 YAML 的第一条 proxy 探测，见 aggregator.check_imported_proxy_yaml
@@ -1071,7 +1071,7 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
     include_raw = await _get_setting(db, "include_types", "")
     exclude_raw = await _get_setting(db, "exclude_types", "")
     exclude_kw_raw = await _get_setting(db, "exclude_keywords", "剩余流量,官网,重置,套餐到期,建议")
-    timeout = int(await _get_setting(db, "fetch_timeout", "15"))
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     module_base_override_yaml = await _get_setting(db, "module_base_override_yaml", "")
     module_tun_override_yaml = await _get_setting(db, "module_tun_override_yaml", "")
     module_dns_override_yaml = await _get_setting(db, "module_dns_override_yaml", "")
