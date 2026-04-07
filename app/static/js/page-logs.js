@@ -35,7 +35,7 @@ async function loadSubLogs(page) {
 
     const tbody = document.getElementById('logsTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400 dark:text-slate-500">加载中…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-slate-400 dark:text-slate-500">加载中…</td></tr>';
 
     try {
         const params = new URLSearchParams({ page, page_size: window._logsPageSize });
@@ -60,7 +60,7 @@ async function loadSubLogs(page) {
         if (nextBtn) nextBtn.disabled = page >= window._logsTotalPages;
 
         if (items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 dark:text-slate-500">暂无访问记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400 dark:text-slate-500">暂无访问记录</td></tr>';
             return;
         }
 
@@ -68,16 +68,17 @@ async function loadSubLogs(page) {
         tbody.innerHTML = items.map((item, idx) => {
             const num = offset + idx + 1;
             const time = formatIsoTime(item.accessed_at);
-            const ip = esc(item.ip || '-');
-            const realIp = item.real_ip ? `<span class="text-emerald-600 dark:text-emerald-400">${esc(item.real_ip)}</span>` : '<span class="text-slate-400">—</span>';
+            const displayIp = item.display_ip || item.real_ip || item.ip || '-';
+            const ipCell = item.real_ip
+                ? `<span class="font-mono text-xs text-emerald-600 dark:text-emerald-400">${esc(displayIp)}</span>`
+                : `<span class="font-mono text-xs">${esc(displayIp)}</span>`;
             const ua = item.user_agent || '';
             const uaShort = ua.length > 80 ? ua.slice(0, 80) + '…' : ua;
             const uaClient = parseClientName(ua);
             return `<tr class="border-t border-slate-100 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                 <td class="px-4 py-2 text-slate-400 text-xs">${num}</td>
                 <td class="px-4 py-2 whitespace-nowrap text-xs">${time}</td>
-                <td class="px-4 py-2 whitespace-nowrap font-mono text-xs">${ip}</td>
-                <td class="px-4 py-2 whitespace-nowrap font-mono text-xs">${realIp}</td>
+                <td class="px-4 py-2 whitespace-nowrap text-xs">${ipCell}</td>
                 <td class="px-4 py-2 text-xs">
                     ${uaClient ? `<span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium mr-1">${esc(uaClient)}</span>` : ''}
                     <span class="text-slate-400 dark:text-slate-500" title="${esc(ua)}">${esc(uaShort) || '—'}</span>
@@ -85,7 +86,7 @@ async function loadSubLogs(page) {
             </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center text-red-500">${esc(e.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-6 text-center text-red-500">${esc(e.message)}</td></tr>`;
     }
 }
 

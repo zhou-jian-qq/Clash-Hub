@@ -162,6 +162,7 @@ class SubAccessLog(Base):
             "id": self.id,
             "ip": self.ip,
             "real_ip": self.real_ip,
+            "display_ip": self.real_ip or self.ip,
             "user_agent": self.user_agent,
             "accessed_at": _iso_utc_api(self.accessed_at),
         }

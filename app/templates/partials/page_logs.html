@@ -43,16 +43,15 @@
                                     <tr class="bg-slate-50 dark:bg-slate-800 text-left text-slate-600 dark:text-slate-300">
                                         <th class="px-4 py-2 font-medium whitespace-nowrap">#</th>
                                         <th class="px-4 py-2 font-medium whitespace-nowrap">时间</th>
-                                        <th class="px-4 py-2 font-medium whitespace-nowrap">直连 IP</th>
-                                        <th class="px-4 py-2 font-medium whitespace-nowrap">真实 IP
-                                            <span class="text-xs font-normal text-slate-400">(反代透传)</span>
+                                        <th class="px-4 py-2 font-medium whitespace-nowrap">客户端 IP
+                                            <span class="text-xs font-normal text-slate-400">(优先反代 X-Forwarded-For / X-Real-IP，无则直连)</span>
                                         </th>
                                         <th class="px-4 py-2 font-medium">客户端 / User-Agent</th>
                                     </tr>
                                 </thead>
                                 <tbody id="logsTableBody">
                                     <tr>
-                                        <td colspan="5"
+                                        <td colspan="4"
                                             class="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                                             加载中…
                                         </td>
