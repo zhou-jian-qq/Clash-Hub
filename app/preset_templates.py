@@ -156,6 +156,7 @@ STANDARD_GROUPS = [
     _g("🍏 苹果服务", "select", STD_PREPEND),
     _g("📲 电报消息", "select", STD_PREPEND),
     _g("🐱 代码托管", "select", STD_PREPEND),
+    _g("🌐 L站", "select", STD_PREPEND),
     _g("🏠 私有网络", "select", HOME_PREPEND),
     _g("🔒 国内服务", "select", HOME_PREPEND),
     _g("🌍 非中国", "select", STD_PREPEND),
@@ -183,6 +184,7 @@ STANDARD_RP = {
 
 STANDARD_RULES = [
     "RULE-SET,category-ads-all,🛑 广告拦截",
+    "DOMAIN-SUFFIX,linux.do,🌐 L站",
     "RULE-SET,category-ai-chat-!cn,🤖 AI 服务",
     "RULE-SET,openai,🤖 AI 服务",
     "RULE-SET,anthropic,🤖 AI 服务",
