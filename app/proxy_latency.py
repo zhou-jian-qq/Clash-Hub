@@ -116,6 +116,43 @@ async def measure_url_test_httpx(
         return False, None, str(e)
 
 
+def format_probe_success_message(
+    kind: str,
+    ms: float | None,
+    *,
+    suffix: str = "",
+    single_subscription: bool = False,
+) -> str:
+    """
+    probe_single_proxy 成功后的用户可见文案。
+    - suffix: 用于导入测速等多节点提示（如「（YAML 解析到 n 个节点…）」）
+    - single_subscription: 订阅单节点检测时使用「可用，1 个节点；…」前缀
+    """
+    x = float(ms or 0.0)
+    if single_subscription:
+        if kind == "httpx":
+            return f"可用，1 个节点；经代理访问测试 URL 延迟约 {x:.0f} ms（http/socks）"
+        if kind == "mihomo":
+            return f"可用，1 个节点；Mihomo URL 测试延迟约 {x:.0f} ms（协议栈与 Clash 一致）"
+        if kind == "tcp-fallback":
+            return (
+                f"可用，1 个节点；TCP 建连约 {x:.0f} ms（兜底：未通过 URL 级代理测试，"
+                "多为未配置 Mihomo 或上层代理检测失败）"
+            )
+        return "可用，1 个节点"
+
+    if kind == "httpx":
+        return f"可用；经代理访问测试 URL 延迟约 {x:.0f} ms（http/socks）{suffix}"
+    if kind == "mihomo":
+        return f"可用；Mihomo URL 测试延迟约 {x:.0f} ms（协议栈与 Clash 一致）{suffix}"
+    if kind == "tcp-fallback":
+        return (
+            f"可用；TCP 建连约 {x:.0f} ms（兜底：未通过 URL 级代理测试，"
+            f"多为未配置 Mihomo 或上层代理检测失败）{suffix}"
+        )
+    return f"可用{suffix}"
+
+
 def _pick_loopback_port() -> int:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("127.0.0.1", 0))

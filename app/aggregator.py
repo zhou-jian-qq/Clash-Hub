@@ -19,7 +19,7 @@ import httpx
 import yaml
 
 from preset_templates import BASE_CONFIG, PRESETS
-from proxy_latency import probe_single_proxy
+from proxy_latency import format_probe_success_message, probe_single_proxy
 from proxy_uri import is_remote_subscription_url, looks_like_proxy_uri_line, parse_single_proxy_uri
 logger = logging.getLogger("aggregator")
 
@@ -324,17 +324,7 @@ async def check_imported_proxy_yaml(
                 "tcp_tested": tested,
                 "probe_kind": kind,
             }
-        if kind == "httpx":
-            msg = f"可用；经代理访问测试 URL 延迟约 {ms:.0f} ms（http/socks）{suffix}"
-        elif kind == "mihomo":
-            msg = f"可用；Mihomo URL 测试延迟约 {ms:.0f} ms（协议栈与 Clash 一致）{suffix}"
-        elif kind == "tcp-fallback":
-            msg = (
-                f"可用；TCP 建连约 {ms:.0f} ms（兜底：未通过 URL 级代理测试，"
-                f"多为未配置 Mihomo 或上层代理检测失败）{suffix}"
-            )
-        else:
-            msg = f"可用{suffix}"
+        msg = format_probe_success_message(kind, ms, suffix=suffix)
         return {
             "ok": True,
             "node_count": n,
@@ -396,17 +386,7 @@ async def check_subscription_availability(url: str, prefix: str, timeout: int = 
                     "tcp_tested": tested,
                     "probe_kind": kind,
                 }
-            if kind == "httpx":
-                msg = f"可用，1 个节点；经代理访问测试 URL 延迟约 {ms:.0f} ms（http/socks）"
-            elif kind == "mihomo":
-                msg = f"可用，1 个节点；Mihomo URL 测试延迟约 {ms:.0f} ms（协议栈与 Clash 一致）"
-            elif kind == "tcp-fallback":
-                msg = (
-                    f"可用，1 个节点；TCP 建连约 {ms:.0f} ms（兜底：未通过 URL 级代理测试，"
-                    "多为未配置 Mihomo 或上层代理检测失败）"
-                )
-            else:
-                msg = "可用，1 个节点"
+            msg = format_probe_success_message(kind, ms, single_subscription=True)
             return {
                 "ok": True,
                 "node_count": 1,
@@ -471,7 +451,7 @@ def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return base
 
 
-def _split_csv_or_lines(text: Any) -> list[str]:
+def split_csv_or_lines(text: Any) -> list[str]:
     if text is None:
         return []
     if isinstance(text, list):
@@ -528,10 +508,10 @@ def _apply_corp_dns_override(config: dict[str, Any], corp_dns: dict[str, Any] | 
         dns = {}
         config["dns"] = dns
 
-    servers = _split_csv_or_lines(corp_dns.get("servers"))
-    domains = [_ensure_corp_domain_pattern(x) for x in _split_csv_or_lines(corp_dns.get("domains"))]
+    servers = split_csv_or_lines(corp_dns.get("servers"))
+    domains = [_ensure_corp_domain_pattern(x) for x in split_csv_or_lines(corp_dns.get("domains"))]
     domains = [x for x in domains if x]
-    ipcidrs = _split_csv_or_lines(corp_dns.get("ipcidrs"))
+    ipcidrs = split_csv_or_lines(corp_dns.get("ipcidrs"))
 
     if servers and domains:
         nsp = dns.get("nameserver-policy")

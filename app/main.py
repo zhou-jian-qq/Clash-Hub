@@ -34,9 +34,11 @@ from aggregator import (
     check_subscription_availability,
     check_imported_proxy_yaml,
     rename_proxies,
+    split_csv_or_lines,
 )
 from preset_templates import PRESETS, get_preset_names
 from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri, is_remote_subscription_url
+from proxy_latency import format_probe_success_message, probe_single_proxy
 from migrations import ensure_subscription_updated_at_column, migrate_inline_subscriptions_to_import_nodes, ensure_sub_access_logs_table
 from scheduler import (
     start_scheduler,
@@ -205,17 +207,6 @@ def _parse_yaml_mapping_or_empty(key: str, text: str) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"{key} 必须是 YAML 映射（对象）")
     return data
-
-
-def _split_csv_or_lines(text: str) -> list[str]:
-    raw = (text or "").replace("\r", "\n")
-    out: list[str] = []
-    for ln in raw.split("\n"):
-        for item in ln.split(","):
-            s = item.strip()
-            if s:
-                out.append(s)
-    return out
 
 
 def _parse_rules_tail(text: str) -> list[str]:
@@ -468,10 +459,9 @@ async def check_proxy_stateless(req: Request, db: AsyncSession = Depends(get_db)
         
         p0 = proxies[0]
         probe_budget = min(25.0, float(timeout))
-        
-        from proxy_latency import probe_single_proxy
+
         ok_p, ms, perr, kind = await probe_single_proxy(p0, probe_budget, mihomo_path)
-        
+
         tested = kind != "none"
         if not ok_p:
             err_msg = str(perr) if perr else "未知错误"
@@ -483,19 +473,9 @@ async def check_proxy_stateless(req: Request, db: AsyncSession = Depends(get_db)
                 "tcp_tested": tested,
                 "probe_kind": kind,
             }
-            
-        if kind == "httpx":
-            msg = f"可用；经代理访问测试 URL 延迟约 {ms:.0f} ms（http/socks）"
-        elif kind == "mihomo":
-            msg = f"可用；Mihomo URL 测试延迟约 {ms:.0f} ms（协议栈与 Clash 一致）"
-        elif kind == "tcp-fallback":
-            msg = (
-                f"可用；TCP 建连约 {ms:.0f} ms（兜底：未通过 URL 级代理测试，"
-                f"多为未配置 Mihomo 或上层代理检测失败）"
-            )
-        else:
-            msg = "可用"
-            
+
+        msg = format_probe_success_message(kind, ms)
+
         return {
             "available": True,
             "message": msg,
@@ -1112,9 +1092,9 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
 
     corp_dns = {
         "enabled": _parse_bool_text(corp_dns_enabled_raw),
-        "servers": _split_csv_or_lines(corp_dns_servers_raw),
-        "domains": _split_csv_or_lines(corp_domain_suffixes_raw),
-        "ipcidrs": _split_csv_or_lines(corp_ipcidrs_raw),
+        "servers": split_csv_or_lines(corp_dns_servers_raw),
+        "domains": split_csv_or_lines(corp_domain_suffixes_raw),
+        "ipcidrs": split_csv_or_lines(corp_ipcidrs_raw),
     }
     rules_tail = _parse_rules_tail(rules_tail_raw)
 
