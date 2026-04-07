@@ -32,9 +32,9 @@ from aggregator import (
     aggregate_traffic,
     fetch_all_subscriptions,
     check_subscription_availability,
-    check_imported_proxy_yaml,
+    probe_imported_proxy_yaml,
     rename_proxies,
-    split_csv_or_lines,
+    split_commas_and_newlines,
 )
 from preset_templates import PRESETS, get_preset_names
 from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri, is_remote_subscription_url
@@ -58,6 +58,7 @@ SUBSCRIPTION_PROFILE_FILENAME = f"{SUBSCRIPTION_PROFILE_NAME}.yaml"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """应用启动：建库、迁移、默认设置、调度器；关闭时停止调度器。"""
     await init_db()
     await ensure_subscription_updated_at_column()
     await ensure_sub_access_logs_table()
@@ -145,11 +146,13 @@ async def _migrate_legacy_custom_template():
 # ═══════════════════ helpers ═══════════════════
 
 async def _get_setting(db: AsyncSession, key: str, default: str = "") -> str:
+    """读取 Setting 表单行；不存在则返回 default。"""
     s = await db.get(Setting, key)
     return s.value if s else default
 
 
 async def _set_setting(db: AsyncSession, key: str, value: str):
+    """写入或插入 Setting 行。"""
     s = await db.get(Setting, key)
     if s:
         s.value = value
@@ -188,11 +191,13 @@ async def _apply_settings_body(db: AsyncSession, body: dict) -> bool:
 
 
 def _normalize_bool_text(v) -> str:
+    """将表单/JSON 中的布尔语义规范为小写 true/false 字符串（供 Setting 存储）。"""
     s = str(v).strip().lower()
     return "true" if s in {"1", "true", "yes", "on"} else "false"
 
 
 def _parse_bool_text(v: str) -> bool:
+    """解析 Setting 中存储的布尔字符串。"""
     return str(v).strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -210,6 +215,7 @@ def _parse_yaml_mapping_or_empty(key: str, text: str) -> dict:
 
 
 def _parse_rules_tail(text: str) -> list[str]:
+    """将多行文本拆成非空规则行（用于追加到 Clash rules 末尾）。"""
     raw = (text or "").strip()
     if not raw:
         return []
@@ -217,7 +223,7 @@ def _parse_rules_tail(text: str) -> list[str]:
 
 
 def _subscription_batch_prefix(base: str, index: int) -> str:
-    """节点前缀：名称_自增序号，总长不超过 Subscription.prefix 限制。"""
+    """导入节点名称前缀：`批次名` 截断后加 `_序号`，整段长度不超过 50 字符。"""
     suffix = f"_{index}"
     max_base = 50 - len(suffix)
     if max_base < 1:
@@ -226,6 +232,7 @@ def _subscription_batch_prefix(base: str, index: int) -> str:
 
 
 def _require_airport_subscription_url(url: str) -> None:
+    """若非 http(s) 订阅 URL 则抛 400（强制机场订阅与节点导入分流）。"""
     if not is_remote_subscription_url((url or "").strip()):
         raise HTTPException(
             400,
@@ -256,6 +263,7 @@ async def _collect_imported_proxies(db: AsyncSession) -> list[dict]:
 
 
 def _proxy_yaml_one_node(proxy: dict) -> str:
+    """将单条 proxy dict 序列化为 Clash `proxies:` 单节点 YAML。"""
     return yaml.dump(
         {"proxies": [proxy]},
         allow_unicode=True,
@@ -265,12 +273,14 @@ def _proxy_yaml_one_node(proxy: dict) -> str:
 
 
 def _node_display_fields(proxy_yaml: str) -> dict:
+    """从节点 YAML 解析首条 proxy，供列表展示名称与类型。"""
     ps = parse_proxies(proxy_yaml)
     p0 = ps[0] if ps else {}
     return {"display_name": str(p0.get("name", "")), "proxy_type": str(p0.get("type", ""))}
 
 
 async def _touch_batch_updated(batch_id: int, db: AsyncSession) -> None:
+    """更新导入批次的 updated_at（节点变更后调用）。"""
     b = await db.get(ImportBatch, batch_id)
     if b:
         b.updated_at = datetime.now(timezone.utc)
@@ -442,8 +452,8 @@ async def get_subscription_nodes(sub_id: int, db: AsyncSession = Depends(get_db)
         raise HTTPException(500, f"获取节点失败: {e}")
 
 @app.post("/api/proxies/check")
-async def check_proxy_stateless(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
-    """无状态代理测速 API"""
+async def probe_proxy_yaml(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    """无状态代理测速：请求体传 `proxy_yaml`，解析首条节点并探测延迟（不落库）。"""
     body = await req.json()
     proxy_yaml = body.get("proxy_yaml")
     if not proxy_yaml:
@@ -834,6 +844,7 @@ async def delete_imported_node(node_id: int, db: AsyncSession = Depends(get_db),
 
 @app.post("/api/imported-nodes/{node_id}/check")
 async def check_imported_node(node_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    """对导入节点 YAML 首条 proxy 做延迟探测，并更新 last_check_at / last_latency_ms。"""
     n = await db.get(ImportedNode, node_id)
     if not n:
         raise HTTPException(404, "节点不存在")
@@ -843,8 +854,8 @@ async def check_imported_node(node_id: int, db: AsyncSession = Depends(get_db), 
     timeout = int(await _get_setting(db, "fetch_timeout", "30"))
     mihomo_path = await _get_setting(db, "mihomo_path", "")
     prefix = _subscription_batch_prefix(batch.name, n.sort_order)
-    # 使用专用测速逻辑：始终对单节点 YAML 的第一条 proxy 探测，见 aggregator.check_imported_proxy_yaml
-    r = await check_imported_proxy_yaml(n.proxy_yaml, prefix, timeout, mihomo_path=mihomo_path)
+    # 使用专用测速逻辑：始终对单节点 YAML 的第一条 proxy 探测，见 aggregator.probe_imported_proxy_yaml
+    r = await probe_imported_proxy_yaml(n.proxy_yaml, prefix, timeout, mihomo_path=mihomo_path)
     
     # 存入数据库
     n.last_check_at = datetime.now(timezone.utc)
@@ -1092,9 +1103,9 @@ async def _build_aggregated_config_yaml(db: AsyncSession) -> tuple[str, dict]:
 
     corp_dns = {
         "enabled": _parse_bool_text(corp_dns_enabled_raw),
-        "servers": split_csv_or_lines(corp_dns_servers_raw),
-        "domains": split_csv_or_lines(corp_domain_suffixes_raw),
-        "ipcidrs": split_csv_or_lines(corp_ipcidrs_raw),
+        "servers": split_commas_and_newlines(corp_dns_servers_raw),
+        "domains": split_commas_and_newlines(corp_domain_suffixes_raw),
+        "ipcidrs": split_commas_and_newlines(corp_ipcidrs_raw),
     }
     rules_tail = _parse_rules_tail(rules_tail_raw)
 
@@ -1221,6 +1232,7 @@ async def get_aggregated_sub(sub_uuid: str, request: Request, db: AsyncSession =
 
 
 def _validate_custom_yaml_body(yaml_text: str) -> None:
+    """校验自定义模板 YAML 至少为含 `proxy-groups` 的映射；否则抛 ValueError。"""
     try:
         parsed = yaml.safe_load(yaml_text)
         if not isinstance(parsed, dict) or "proxy-groups" not in parsed:

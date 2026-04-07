@@ -5,6 +5,7 @@ from database import Base
 
 
 def _utc_now():
+    """ORM 列默认值：当前 UTC 时间。"""
     return datetime.now(timezone.utc)
 
 
@@ -25,6 +26,8 @@ def _iso_utc_api(dt: datetime | None) -> str | None:
 
 
 class Subscription(Base):
+    """机场远程订阅：URL、流量、节点数及自动禁用策略。"""
+
     __tablename__ = "subscriptions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -117,6 +120,8 @@ class ImportedNode(Base):
 
 
 class Setting(Base):
+    """键值配置表（单表多行，key 主键）。"""
+
     __tablename__ = "settings"
 
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
@@ -142,7 +147,7 @@ class CustomTemplate(Base):
 
 
 class SubAccessLog(Base):
-    """订阅拉取访问日志"""
+    """聚合订阅链接 `/sub/{uuid}` 被拉取时的访问日志（IP、UA）。"""
 
     __tablename__ = "sub_access_logs"
 

@@ -33,6 +33,7 @@ def parse_refresh_interval_hours(raw: str) -> int:
 
 
 async def get_setting(key: str, default: str = "") -> str:
+    """调度器独立会话内读取 Setting（不经过 FastAPI get_db）。"""
     async with async_session() as session:
         result = await session.get(Setting, key)
         return result.value if result else default

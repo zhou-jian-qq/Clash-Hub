@@ -41,7 +41,10 @@ SUPPORTED_TYPES = {"ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteri
 
 # ─── 解析 subscription-userinfo ───
 def parse_userinfo(header: str) -> dict:
-    """解析 subscription-userinfo: upload=...; download=...; total=...; expire=..."""
+    """解析 HTTP 响应头 `subscription-userinfo`（分号分隔的 key=value）。
+
+    返回 used（upload+download）、total、expire（均为整数；缺省为 0）。
+    """
     info = {}
     if not header:
         return info
@@ -62,6 +65,10 @@ def parse_userinfo(header: str) -> dict:
 
 # ─── Base64 解码 ───
 def try_decode_base64(text: str) -> str | None:
+    """对整段文本做标准 Base64 解码（含补齐 padding）。失败返回 None。
+
+    用于订阅内容外层为 Base64 时的解码；与 proxy_uri 中带 urlsafe 尝试的解码策略不同。
+    """
     text = text.strip()
     padded = text + "=" * (-len(text) % 4)
     try:
@@ -72,6 +79,10 @@ def try_decode_base64(text: str) -> str | None:
 
 # ─── 解析订阅内容为 proxies 列表 ───
 def parse_proxies(content: str) -> list[dict]:
+    """将订阅正文解析为 Clash `proxies` 项列表。
+
+    依次尝试：Clash YAML（含 proxies / 根列表 / 单节点 dict）、纯分享链接行、Base64 内嵌多行 URI。
+    """
     content = _normalize_pasted_yaml_whitespace(content.strip())
     if not content:
         return []
@@ -153,7 +164,7 @@ def extract_proxies_for_batch_import(text: str) -> list[dict] | None:
 
 
 def _parse_uri_lines(text: str) -> list[dict]:
-    """解析多行: 每行一条分享链接或一行一个 YAML dict"""
+    """逐行解析：分享链接 parse_single_proxy_uri，否则尝试单行 YAML 单节点 dict。"""
     proxies = []
     for line in text.strip().splitlines():
         line = line.strip()
@@ -203,7 +214,7 @@ def filter_proxies(
 
 
 def rename_proxies(proxies: list[dict], prefix: str) -> list[dict]:
-    """给节点名称添加前缀"""
+    """为每条 proxy 的 name 添加 `[prefix] ` 前缀；prefix 为空则原样返回。"""
     if not prefix:
         return proxies
     for p in proxies:
@@ -213,7 +224,10 @@ def rename_proxies(proxies: list[dict], prefix: str) -> list[dict]:
 
 # ─── 并发抓取 ───
 async def fetch_subscription(url: str, timeout: int = 15) -> tuple[str, dict]:
-    """返回 (内容, userinfo_dict)"""
+    """HTTP(S) GET 拉取远程订阅正文，并解析 `subscription-userinfo` 头。
+
+    返回 (响应体文本, userinfo_dict)；userinfo_dict 由 parse_userinfo 生成。
+    """
     async with httpx.AsyncClient(
         follow_redirects=True,
         timeout=httpx.Timeout(timeout),
@@ -280,19 +294,17 @@ async def measure_tcp_latency(host: str, port: int, timeout: float = 5.0) -> tup
                 pass
 
 
-async def check_imported_proxy_yaml(
+async def probe_imported_proxy_yaml(
     proxy_yaml: str,
     prefix: str,
     timeout: int = 15,
     mihomo_path: str = "",
 ) -> dict:
     """
-    「节点导入」页单节点测速专用。
+    对已落库的节点 YAML 做延迟探测（「节点导入」测速专用）。
 
-    与 check_subscription_availability 的区别：
-    - 入参是已落库的 proxy_yaml 片段，不是远程订阅 URL。
-    - 始终只对解析出的第一个 proxy 做 probe_single_proxy；若 YAML 误含多条，仍测第一条并
-      在 message 中注明，避免走「多节点仅解析不测延迟」分支导致 latency 恒为空。
+    与 check_subscription_availability 的区别：入参非 URL，而是 proxy_yaml 片段；
+    仅对解析出的第一个节点调用 probe_single_proxy；若含多条则在 message 中提示。
     """
     base_extra = {"latency_ms": None, "tcp_tested": False, "probe_kind": "none"}
     try:
@@ -418,12 +430,14 @@ async def check_subscription_availability(url: str, prefix: str, timeout: int = 
 
 async def fetch_all_subscriptions(subscriptions: list[dict], timeout: int = 15):
     """
-    并发抓取所有订阅, 返回 list[{sub_id, proxies, userinfo, error}]
-    subscriptions: list of Subscription.to_dict()
+    并发抓取所有**已启用**订阅。
+
+    每个元素：`{sub_id, proxies, userinfo, error}`；`subscriptions` 为 Subscription.to_dict() 列表。
     """
     import asyncio
 
     async def _fetch_one(sub):
+        """单条订阅：拉取、解析节点、加前缀；异常时写入 error。"""
         result = {"sub_id": sub["id"], "proxies": [], "userinfo": {}, "error": None}
         try:
             content, userinfo = await fetch_subscription_content(sub["url"], timeout)
@@ -451,7 +465,12 @@ def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return base
 
 
-def split_csv_or_lines(text: Any) -> list[str]:
+def split_commas_and_newlines(text: Any) -> list[str]:
+    """将配置中的「多行 / 逗号分隔」列表规范为字符串列表。
+
+    先按换行再按逗号切分，去空；支持传入 str、list[str] 或 None（空列表）。
+    用于企业 DNS 的 servers、domains、ipcidrs 等设置项。
+    """
     if text is None:
         return []
     if isinstance(text, list):
@@ -470,6 +489,7 @@ def split_csv_or_lines(text: Any) -> list[str]:
 
 
 def _dedup_keep_order(items: list[str]) -> list[str]:
+    """去重并保持首次出现顺序。"""
     seen: set[str] = set()
     out: list[str] = []
     for item in items:
@@ -481,6 +501,7 @@ def _dedup_keep_order(items: list[str]) -> list[str]:
 
 
 def _ensure_corp_domain_pattern(domain: str) -> str:
+    """将域名规范为 Clash fake-ip-filter / nameserver-policy 可用的 `+.` 前缀形式（若适用）。"""
     s = domain.strip()
     if not s:
         return s
@@ -508,10 +529,10 @@ def _apply_corp_dns_override(config: dict[str, Any], corp_dns: dict[str, Any] | 
         dns = {}
         config["dns"] = dns
 
-    servers = split_csv_or_lines(corp_dns.get("servers"))
-    domains = [_ensure_corp_domain_pattern(x) for x in split_csv_or_lines(corp_dns.get("domains"))]
+    servers = split_commas_and_newlines(corp_dns.get("servers"))
+    domains = [_ensure_corp_domain_pattern(x) for x in split_commas_and_newlines(corp_dns.get("domains"))]
     domains = [x for x in domains if x]
-    ipcidrs = split_csv_or_lines(corp_dns.get("ipcidrs"))
+    ipcidrs = split_commas_and_newlines(corp_dns.get("ipcidrs"))
 
     if servers and domains:
         nsp = dns.get("nameserver-policy")
@@ -631,7 +652,7 @@ def build_config(
 
 # ─── 流量汇总 ───
 def aggregate_traffic(subscriptions: list[dict]) -> dict:
-    """汇总所有启用订阅的流量信息"""
+    """汇总订阅列表的总已用流量、总配额、最早过期时间与可读日期（仅统计 enabled 为真的行）。"""
     total_used = 0
     total_total = 0
     earliest_expire = 0

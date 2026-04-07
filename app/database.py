@@ -1,3 +1,5 @@
+"""SQLite 异步连接与会话；数据文件位于 app/data/clash_hub.db。"""
+
 import os
 
 from sqlalchemy import event
@@ -13,6 +15,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 @event.listens_for(engine.sync_engine, "connect")
 def _sqlite_enable_foreign_keys(dbapi_conn, _connection_record):
+    """SQLite 连接时启用外键约束。"""
     if "sqlite" in DATABASE_URL:
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
@@ -24,6 +27,7 @@ class Base(DeclarativeBase):
 
 
 async def init_db():
+    """确保数据目录存在并创建 ORM 表（幂等）。"""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     async with engine.begin() as conn:
         from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode
@@ -35,5 +39,6 @@ async def init_db():
 
 
 async def get_db() -> AsyncSession:
+    """FastAPI 依赖：为每个请求提供异步 Session，退出时关闭。"""
     async with async_session() as session:
         yield session

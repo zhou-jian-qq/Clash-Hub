@@ -23,16 +23,19 @@ _URI_PREFIXES = (
 
 
 def is_remote_subscription_url(url: str) -> bool:
+    """是否为 http(s) 远程订阅地址（与本地粘贴的 URI/ YAML 区分）。"""
     u = (url or "").strip().lower()
     return u.startswith("http://") or u.startswith("https://")
 
 
 def looks_like_proxy_uri_line(line: str) -> bool:
+    """行首是否为已知分享链接协议前缀（ss/vmess/vless 等）。"""
     s = (line or "").strip().lower()
     return any(s.startswith(p) for p in _URI_PREFIXES)
 
 
 def _b64_decode(s: str) -> str:
+    """Base64 / URL-safe Base64 解码为 UTF-8 文本；失败返回空串。"""
     s = s.strip()
     pad = s + "=" * (-len(s) % 4)
     for decoder in (base64.urlsafe_b64decode, base64.b64decode):
@@ -44,6 +47,7 @@ def _b64_decode(s: str) -> str:
 
 
 def parse_single_proxy_uri(uri: str) -> dict[str, Any] | None:
+    """将单条分享链接解析为 Clash proxy 字典；不支持的协议返回 None。"""
     uri = (uri or "").strip()
     if not uri:
         return None
@@ -62,6 +66,7 @@ def parse_single_proxy_uri(uri: str) -> dict[str, Any] | None:
 
 
 def _name_from_fragment(uri: str, default: str) -> str:
+    """从 `#` 片段解析节点备注名；无则返回 default。"""
     if "#" not in uri:
         return default
     return urllib.parse.unquote(uri.split("#", 1)[1].strip() or default)

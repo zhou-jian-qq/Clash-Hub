@@ -34,6 +34,7 @@ _TYPES_MIHOMO_CORE = frozenset(
 
 
 def resolve_mihomo_executable(path: str) -> str | None:
+    """解析 Mihomo 可执行路径：去 BOM/引号、展开环境变量与用户目录；空则查 PATH 与 CLASH_HUB_MIHOMO。"""
     raw = (path or "").strip()
     p = raw.lstrip("\ufeff")
     if len(p) >= 2 and p[0] == p[-1] and p[0] in ("'", '"'):
@@ -58,6 +59,7 @@ def resolve_mihomo_executable(path: str) -> str | None:
 
 
 def _quote_proxy_component(s: str) -> str:
+    """代理 URL 中用户名/密码片段的 URL 编码。"""
     return urllib.parse.quote(s, safe="")
 
 
@@ -94,6 +96,7 @@ async def measure_url_test_httpx(
     test_url: str = DEFAULT_URL_TEST,
     timeout: float = 10.0,
 ) -> tuple[bool, float | None, str | None]:
+    """经给定代理 URL 访问测试地址，测量端到端耗时（毫秒）。成功时 status 为 200 或 204。"""
     t0 = time.perf_counter()
     try:
         async with httpx.AsyncClient(
@@ -154,6 +157,7 @@ def format_probe_success_message(
 
 
 def _pick_loopback_port() -> int:
+    """绑定本机随机可用端口，供 Mihomo external-controller 使用。"""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("127.0.0.1", 0))
     p = s.getsockname()[1]
@@ -162,6 +166,7 @@ def _pick_loopback_port() -> int:
 
 
 def _prepare_proxy_for_mihomo(p: dict[str, Any]) -> dict[str, Any]:
+    """深拷贝节点并将 name 固定为 hub-probe，供 Mihomo 配置引用。"""
     import copy
 
     x = copy.deepcopy(p)
@@ -170,6 +175,7 @@ def _prepare_proxy_for_mihomo(p: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_mihomo_config(proxy: dict[str, Any], ec_port: int) -> dict[str, Any]:
+    """生成最小 Mihomo 配置：单节点 + external-controller + 默认 select 组。"""
     return {
         "port": 0,
         "socks-port": 0,
@@ -306,8 +312,11 @@ async def probe_single_proxy(
     mihomo_path: str,
 ) -> tuple[bool, float | None, str | None, str]:
     """
-    返回 (ok, latency_ms, error, probe_kind)
-    probe_kind: httpx | mihomo | tcp-fallback | none
+    对单条 Clash proxy 字典测延迟（与 Clash「URL 测试」语义接近）。
+
+    返回 (ok, latency_ms, error, probe_kind)。
+    probe_kind 含义：httpx（HTTP 代理直连测试）、mihomo（内核 delay）、tcp-fallback（仅 TCP 建连成功）、
+    tcp（TCP 建连失败）、mihomo 失败时也可能为 mihomo、none（无法探测如缺端口）。
     """
     from aggregator import measure_tcp_latency, proxy_tcp_endpoint
 
