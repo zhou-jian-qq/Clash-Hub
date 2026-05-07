@@ -278,6 +278,14 @@ def _parse_vless(uri: str) -> dict[str, Any] | None:
                 out["client-fingerprint"] = q1("fp")
             if q1("flow"):
                 out["flow"] = q1("flow")
+            if sec == "reality":
+                reality_opts: dict[str, str] = {}
+                if q1("pbk"):
+                    reality_opts["public-key"] = q1("pbk")
+                if q1("sid"):
+                    reality_opts["short-id"] = q1("sid")
+                if reality_opts:
+                    out["reality-opts"] = reality_opts
         if q1("allowInsecure", "0") in ("1", "true", "True"):
             out["skip-cert-verify"] = True
         net = q1("type", "tcp").lower()
@@ -390,7 +398,14 @@ def _clash_vless_to_uri(p: dict) -> str | None:
         port = str(p["port"])
         uid = urllib.parse.quote(str(p["uuid"]), safe="")
         params: dict[str, str] = {}
-        if p.get("tls"):
+        reality_opts = p.get("reality-opts")
+        if isinstance(reality_opts, dict) and reality_opts:
+            params["security"] = "reality"
+            if reality_opts.get("public-key"):
+                params["pbk"] = str(reality_opts["public-key"])
+            if reality_opts.get("short-id"):
+                params["sid"] = str(reality_opts["short-id"])
+        elif p.get("tls"):
             params["security"] = "tls"
         if p.get("servername"):
             params["sni"] = str(p["servername"])
