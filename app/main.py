@@ -38,7 +38,7 @@ from aggregator import (
     split_commas_and_newlines,
 )
 from preset_templates import PRESETS, get_preset_names
-from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri, is_remote_subscription_url
+from proxy_uri import looks_like_proxy_uri_line, parse_single_proxy_uri, is_remote_subscription_url, proxy_dict_to_uri
 from proxy_latency import format_probe_success_message, probe_single_proxy
 from migrations import ensure_subscription_updated_at_column, migrate_inline_subscriptions_to_import_nodes, ensure_sub_access_logs_table
 from scheduler import (
@@ -451,6 +451,27 @@ async def get_subscription_nodes(sub_id: int, db: AsyncSession = Depends(get_db)
         return {"ok": True, "nodes": nodes}
     except Exception as e:
         raise HTTPException(500, f"获取节点失败: {e}")
+
+@app.post("/api/proxies/to-v2ray-uri")
+async def proxy_yaml_to_v2ray_uri(req: Request, _=Depends(require_admin)):
+    """将 Clash proxy YAML / 分享链接转换为 V2Ray 分享链接 URI（供节点管理页一键复制）。
+
+    请求体：`{ "proxy_yaml": "..." }`
+    响应：`{ "uri": "vmess://..." }` 或 `{ "uri": null, "error": "..." }`
+    """
+    body = await req.json()
+    proxy_yaml = body.get("proxy_yaml", "")
+    if not proxy_yaml.strip():
+        raise HTTPException(400, "缺少 proxy_yaml 参数")
+    proxies = parse_proxies(proxy_yaml)
+    if not proxies:
+        raise HTTPException(400, "无法解析节点配置")
+    uri = proxy_dict_to_uri(proxies[0])
+    if uri is None:
+        ptype = proxies[0].get("type", "未知")
+        raise HTTPException(422, f"该节点协议（{ptype}）暂不支持转换为 V2Ray 分享链接")
+    return {"uri": uri}
+
 
 @app.post("/api/proxies/check")
 async def probe_proxy_yaml(req: Request, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):

@@ -191,11 +191,24 @@ function showEditImportNodeModal(id) {
       <textarea id="node_yaml_edit" rows="18" class="font-mono text-sm w-full">${escHtml(n.proxy_yaml)}</textarea>
       <div class="flex gap-2 justify-end mt-3">
 <button type="button" class="btn btn-secondary" onclick="document.getElementById('nodeEditModal').remove()">取消</button>
+<button type="button" class="btn btn-outline-accent" onclick="copyNodeAsV2rayUri()" title="将当前节点转换为 vmess:// / vless:// 等分享链接并复制">复制 V2Ray 链接</button>
 <button type="button" class="btn btn-primary" onclick="saveImportNodeYaml(${id})">保存</button>
       </div>
     </div>
   </div>`;
     document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function copyNodeAsV2rayUri() {
+    const proxy_yaml = document.getElementById('node_yaml_edit')?.value || '';
+    if (!proxy_yaml.trim()) { toast('内容为空', 'error'); return; }
+    try {
+        const r = await api('/api/proxies/to-v2ray-uri', {
+            method: 'POST',
+            body: JSON.stringify({ proxy_yaml }),
+        });
+        await copyText(r.uri, '已复制 V2Ray 分享链接');
+    } catch (e) { toast(e.message, 'error'); }
 }
 
 async function saveImportNodeYaml(id) {
