@@ -12,7 +12,7 @@ function showBatchImportModal() {
   <input id="batch_sub_name" placeholder="例如：我的节点" value="导入"></div>
 <div><label class="text-sm text-slate-400">分享链接或 proxies YAML</label>
   <textarea id="batch_uri_text" rows="14" class="font-mono text-sm w-full" placeholder="vmess://... 或 proxies:&#10;  - {name: ..., type: ss, ...}"></textarea></div>
-<div class="flex gap-2 justify-end">
+<div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
   <button type="button" class="btn btn-secondary" onclick="document.getElementById('batchImportModal').remove()">取消</button>
   <button type="button" class="btn btn-primary" onclick="submitBatchImport()">导入</button>
 </div>
@@ -72,16 +72,16 @@ async function loadImportBatches() {
                 }
                 
                 return `
-<div class="flex flex-wrap items-center gap-2 py-2 border-b border-slate-700/50 last:border-0 pl-2 md:pl-4">
+<div class="flex flex-wrap items-center gap-2 py-3 border-b border-slate-700/50 last:border-0 pl-2 md:pl-4">
   <label class="sub-switch mr-1 shrink-0" title="启用">
     <input type="checkbox" role="switch" aria-label="启用节点" ${n.enabled ? 'checked' : ''} onchange="toggleImportNodeEnabled(${n.id}, this.checked)">
     <span class="sub-switch-slider"></span>
   </label>
-  <span class="font-medium truncate max-w-[12rem] md:max-w-none">${esc(n.display_name)}</span>
+  <span class="font-medium min-w-0 flex-1 basis-[12rem] truncate md:max-w-none">${esc(n.display_name)}</span>
   <span class="tag bg-slate-600/50 text-xs shrink-0">${esc(n.proxy_type)}</span>
   ${statusHtml}
   <span class="text-xs text-slate-500 hidden sm:inline ml-1">${n.last_check_at ? formatIsoTime(n.last_check_at) : formatIsoTime(n.updated_at)}</span>
-  <div class="flex flex-wrap gap-1 ml-auto">
+  <div class="flex flex-wrap gap-1 w-full sm:w-auto sm:ml-auto sm:justify-end">
     <button type="button" class="btn btn-secondary btn-sm" onclick="showEditImportNodeModal(${n.id})">编辑</button>
     <button type="button" class="btn btn-outline-accent btn-sm" id="btn-check-${n.id}" onclick="checkImportNode(${n.id}, true)">测速</button>
     <button type="button" class="btn btn-danger btn-sm" onclick="deleteImportNode(${n.id})">删除</button>
@@ -89,10 +89,10 @@ async function loadImportBatches() {
 </div>`}).join('');
             return `<details class="card mb-2" open>
 <summary class="cursor-pointer font-semibold flex flex-wrap items-center gap-2 py-2 px-2 list-none">
-  <span class="select-none">${esc(b.name)}</span>
+  <span class="select-none min-w-0 max-w-full break-words">${esc(b.name)}</span>
   <span class="text-xs text-slate-400 font-normal">添加 ${formatIsoTime(b.created_at)}</span>
   <span class="text-xs text-slate-500 font-normal">更新 ${formatIsoTime(b.updated_at)}</span>
-  <span class="flex flex-wrap gap-1 ml-auto" onclick="event.preventDefault(); event.stopPropagation();">
+  <span class="flex flex-wrap gap-1 w-full sm:w-auto sm:ml-auto sm:justify-end" onclick="event.preventDefault(); event.stopPropagation();">
     <button type="button" class="btn btn-outline-accent btn-sm" onclick="event.stopPropagation(); batchCheckImportBatch(${b.id})" title="批量测速本批次所有节点">批量测速</button>
     <button type="button" class="btn btn-outline-warn btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, false)" title="本批次下全部节点设为禁用">批量禁用</button>
     <button type="button" class="btn btn-success btn-sm" onclick="event.stopPropagation(); setImportBatchAllEnabled(${b.id}, true)" title="本批次下全部节点设为启用">批量启用</button>
@@ -126,7 +126,7 @@ function showRenameImportBatchModal(id) {
         <label class="text-sm text-slate-400" for="batch_rename_input">批次名称</label>
         <input id="batch_rename_input" type="text" class="w-full mt-1" placeholder="例如：我的节点" autocomplete="off">
       </div>
-      <div class="flex gap-2 justify-end mt-3">
+      <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end mt-3">
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('batchRenameModal').remove()">取消</button>
         <button type="button" class="btn btn-primary" onclick="saveRenameImportBatch(${id})">保存</button>
       </div>
@@ -189,7 +189,7 @@ function showEditImportNodeModal(id) {
       <h3 class="text-lg font-bold mb-3">编辑节点</h3>
       <p class="text-sm text-slate-400 mb-2">可粘贴单节点 YAML、<code class="text-xs">proxies:</code> 片段或一行分享链接。</p>
       <textarea id="node_yaml_edit" rows="18" class="font-mono text-sm w-full">${escHtml(n.proxy_yaml)}</textarea>
-      <div class="flex gap-2 justify-end mt-3">
+      <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end mt-3">
 <button type="button" class="btn btn-secondary" onclick="document.getElementById('nodeEditModal').remove()">取消</button>
 <button type="button" class="btn btn-outline-accent" onclick="copyNodeAsV2rayUri()" title="将当前节点转换为 vmess:// / vless:// 等分享链接并复制">复制 V2Ray 链接</button>
 <button type="button" class="btn btn-primary" onclick="saveImportNodeYaml(${id})">保存</button>

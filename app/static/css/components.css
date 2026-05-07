@@ -12,6 +12,8 @@
     transition: transform .15s ease, box-shadow .15s ease, background .15s, opacity .15s;
     border: none;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    min-height: 2.5rem;
+    line-height: 1.25;
 }
 
 .btn:hover {
@@ -215,6 +217,8 @@ textarea:focus {
     align-items: center;
     justify-content: center;
     z-index: 50;
+    padding: 1rem;
+    overflow-y: auto;
 }
 
 .tag {
@@ -234,6 +238,8 @@ textarea:focus {
     border-radius: .5rem;
     font-weight: 500;
     animation: slidein .3s;
+    max-width: min(24rem, calc(100vw - 2rem));
+    word-break: break-word;
 }
 
 @keyframes slidein {
@@ -324,6 +330,7 @@ textarea:focus {
     gap: .75rem;
     padding: .75rem 1rem;
     border-bottom: 1px solid var(--border);
+    min-width: 0;
 }
 
 .client-row:last-child {
@@ -460,6 +467,90 @@ textarea:focus {
 .preview-toggle button.active {
     background: var(--accent);
     color: #fff;
+}
+
+@media (max-width: 640px) {
+    .btn {
+        width: auto;
+        min-height: 2.75rem;
+        padding: .625rem .875rem;
+    }
+
+    .btn-sm {
+        min-height: 2.5rem;
+        padding: .5rem .75rem;
+        font-size: .8125rem;
+    }
+
+    input:not([type=checkbox]):not([type=radio]):not([type=range]),
+    select,
+    textarea {
+        font-size: 16px;
+    }
+
+    .modal-bg {
+        align-items: flex-start;
+        padding: .75rem;
+    }
+
+    .modal-bg > .card {
+        width: 100%;
+        max-width: none !important;
+        max-height: calc(100dvh - 1.5rem) !important;
+        overflow-y: auto;
+    }
+
+    .toast {
+        top: .75rem;
+        right: .75rem;
+        left: .75rem;
+    }
+
+    .home-tab {
+        flex: 1 0 auto;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .client-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        padding: .875rem 0;
+    }
+
+    .client-row > :nth-child(2) {
+        flex-basis: calc(100% - 3.25rem);
+        line-height: 2.5rem;
+    }
+
+    .client-row > :nth-child(3) {
+        width: 100%;
+        justify-content: stretch;
+        padding-left: 3.25rem;
+    }
+
+    .client-row > :nth-child(3) .btn {
+        flex: 1 1 9rem;
+    }
+
+    .yaml-viewer {
+        min-height: min(56vh, 420px);
+        font-size: .6875rem;
+    }
+
+    .yaml-gutter {
+        min-width: 2rem;
+        padding-left: .5rem;
+        padding-right: .375rem;
+    }
+
+    .yaml-code {
+        padding: .75rem .625rem;
+    }
+
+    table {
+        min-width: 44rem;
+    }
 }
 
 /* 日期选择器弹出日历面板跟随主题 */

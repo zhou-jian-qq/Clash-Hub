@@ -8,6 +8,8 @@ body {
     color: var(--text);
     min-height: 100vh;
     transition: background .2s, color .2s;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
 }
 
 .card {
@@ -17,6 +19,7 @@ body {
     padding: 1.75rem;
     box-shadow: var(--shadow);
     transition: box-shadow .25s ease, transform .25s ease, border-color .2s;
+    min-width: 0;
 }
 
 .card:hover {
@@ -46,6 +49,16 @@ body {
 
 .nav-item svg {
     opacity: .85;
+}
+
+.nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-backdrop {
+    display: none;
 }
 
 header {
@@ -85,6 +98,10 @@ header {
 }
 
 @media (min-width: 1024px) {
+    .nav-toggle {
+        display: none;
+    }
+
     .layout-nav {
         background: var(--bg-glass);
         backdrop-filter: blur(12px);
@@ -94,24 +111,103 @@ header {
 
 @media (max-width: 1023px) {
     .layout-nav {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid var(--border);
+        width: min(16rem, calc(100vw - 3.5rem));
+        border-right: 1px solid var(--border);
+        border-bottom: none;
         min-height: auto;
-        padding: .5rem 1rem;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: .25rem;
+        height: calc(100dvh - 61px);
+        padding: .75rem;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: .35rem;
         background: var(--bg-glass);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        position: sticky;
+        position: fixed;
+        left: 0;
         top: 61px; /* Just below header if it has height, approx 61px */
-        z-index: 30;
+        z-index: 45;
+        overflow-y: auto;
+        transform: translateX(-105%);
+        transition: transform .22s ease;
+        box-shadow: 18px 0 40px rgba(0, 0, 0, .22);
+    }
+
+    .layout-nav .nav-item {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: .65rem .75rem;
+        min-height: 2.75rem;
     }
 
     .layout-main {
         max-height: none !important;
+    }
+
+    body.nav-open .layout-nav {
+        transform: translateX(0);
+    }
+
+    body.nav-open .nav-backdrop {
+        display: block;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: 61px;
+        z-index: 44;
+        background: rgba(15, 23, 42, .38);
+    }
+}
+
+@media (max-width: 640px) {
+    header {
+        align-items: flex-start;
+        padding-top: .75rem !important;
+        padding-bottom: .75rem !important;
+    }
+
+    .layout-nav {
+        top: 57px;
+        height: calc(100dvh - 57px);
+        padding: .75rem;
+        gap: .35rem;
+    }
+
+    .layout-nav .nav-item {
+        gap: .5rem;
+        padding: .65rem .75rem;
+        border-radius: .5rem;
+        font-size: .9rem;
+        line-height: 1.25rem;
+        min-height: 2.75rem;
+    }
+
+    .layout-nav .nav-item svg {
+        width: 1.1rem;
+        height: 1.1rem;
+    }
+
+    body.nav-open .nav-backdrop {
+        top: 57px;
+    }
+
+    .layout-main {
+        padding: .75rem !important;
+    }
+
+    .card {
+        border-radius: .75rem;
+        padding: 1rem;
+    }
+
+    .card:hover {
+        transform: none;
+    }
+
+    h2.text-xl {
+        font-size: 1.125rem;
+        line-height: 1.5rem;
     }
 }
 

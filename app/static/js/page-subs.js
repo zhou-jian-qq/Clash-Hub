@@ -12,18 +12,18 @@ async function loadSubs() {
             const pct = s.total > 0 ? Math.min(100, (s.used / s.total * 100)).toFixed(1) : 0;
             const color = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#22c55e';
             return `<div class="card mb-3" data-sub-id="${s.id}">
-<div class="flex items-center justify-between mb-2 flex-wrap gap-2">
-  <div class="flex items-center gap-2">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-3">
+  <div class="flex items-center gap-2 min-w-0 flex-wrap">
     <input type="checkbox" class="sub-cb rounded border-slate-500 shrink-0" data-id="${s.id}" title="勾选后可批量启用/禁用/检测" onclick="event.stopPropagation()" onchange="syncSubSelectAll()">
     <label class="sub-switch mr-1" title="${s.enabled ? '点击禁用' : '点击启用'}">
       <input type="checkbox" role="switch" aria-label="启用订阅" ${s.enabled ? 'checked' : ''} onchange="toggleSubEnabled(${s.id}, this.checked)">
       <span class="sub-switch-slider"></span>
     </label>
     <span class="tag ${s.enabled ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}">${s.enabled ? '启用' : '禁用'}</span>
-    <span class="font-semibold">${esc(s.name)}</span>
+    <span class="font-semibold min-w-0 max-w-full break-words">${esc(s.name)}</span>
     ${s.prefix ? `<span class="tag bg-blue-600/20 text-blue-400">${esc(s.prefix)}</span>` : ''}
   </div>
-  <div class="flex flex-wrap gap-1">
+  <div class="flex flex-wrap gap-1 sm:justify-end">
     <button type="button" class="btn btn-ghost btn-sm" onclick="refreshSub(${s.id})">刷新</button>
     <button type="button" class="btn btn-outline-accent btn-sm" onclick="checkSub(${s.id})" title="检测：拉取+解析；单节点时额外 TCP 建连延迟">检测</button>
     <button type="button" class="btn btn-outline-accent btn-sm" onclick="showSubNodesModal(${s.id})" title="查看并测速订阅下的节点">节点明细</button>
@@ -31,7 +31,7 @@ async function loadSubs() {
     <button type="button" class="btn btn-danger btn-sm" onclick="deleteSub(${s.id})">删除</button>
   </div>
 </div>
-<div class="flex flex-wrap items-center gap-4 text-sm text-slate-400 mb-2">
+<div class="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-1 sm:gap-4 text-sm text-slate-400 mb-2">
   <span>节点: ${s.node_count}</span>
   <span>已用: ${formatBytes(s.used)} / ${formatBytes(s.total)}</span>
   <span>到期: ${formatDate(s.expire)}</span>
@@ -108,11 +108,11 @@ function showSubModal(sub = null) {
 <div><label class="text-sm text-slate-400">名称</label><input id="m_name" value="${esc(sub?.name || '')}"></div>
 <div><label class="text-sm text-slate-400">机场订阅链接</label><input id="m_url" value="${esc(sub?.url || '')}" placeholder="仅支持 https:// 或 http:// 订阅地址"></div>
 <div><label class="text-sm text-slate-400">前缀</label><input id="m_prefix" value="${esc(sub?.prefix || '')}" placeholder="可选, 用于区分来源"></div>
-<div class="flex items-center gap-4">
+<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
   <label class="flex items-center gap-2"><input type="checkbox" id="m_enabled" ${!sub || sub.enabled ? 'checked' : ''}> 启用</label>
   <label class="flex items-center gap-2"><input type="checkbox" id="m_autodis" ${!sub || sub.auto_disable ? 'checked' : ''}> 自动禁用</label>
 </div>
-<div class="flex gap-2 justify-end">
+<div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
   <button class="btn btn-secondary" onclick="document.getElementById('subModal').remove()">取消</button>
   <button class="btn btn-primary" onclick="saveSub(${sub ? sub.id : 'null'})">${isEdit ? '保存' : '添加'}</button>
 </div>
@@ -217,7 +217,7 @@ async function showSubNodesModal(id) {
     // 显示加载中弹窗
     const loadingHtml = `<div class="modal-bg" id="subNodesModal" onclick="if(event.target===this)this.remove()">
     <div class="card w-full max-w-4xl max-h-[90vh] flex flex-col">
-      <h3 class="text-lg font-bold mb-3 border-b border-slate-700/50 pb-2 flex items-center justify-between">
+      <h3 class="text-lg font-bold mb-3 border-b border-slate-700/50 pb-2 flex flex-wrap items-center justify-between gap-2">
         <span>「${esc(sub.name)}」节点明细</span>
         <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('subNodesModal').remove()">关闭</button>
       </h3>
@@ -243,17 +243,17 @@ async function showSubNodesModal(id) {
         
         container.className = "flex-1 overflow-y-auto";
         container.innerHTML = `
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
                 <span class="text-sm text-slate-400">共解析到 ${nodes.length} 个节点（关闭弹窗后状态将不被保留）</span>
                 <button type="button" class="btn btn-outline-accent btn-sm" onclick="batchCheckSubNodes()">批量测速</button>
             </div>
             <div class="border border-slate-700/50 rounded-lg overflow-hidden">
                 ${nodes.map((n, i) => `
-                <div class="flex items-center gap-3 p-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 transition-colors">
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3 p-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 transition-colors">
                     <span class="text-xs text-slate-500 w-6 text-right">${i + 1}</span>
-                    <span class="font-medium truncate max-w-[15rem] md:max-w-md" title="${esc(n.name)}">${esc(n.name)}</span>
+                    <span class="font-medium min-w-0 flex-1 basis-[12rem] truncate md:max-w-md" title="${esc(n.name)}">${esc(n.name)}</span>
                     <span class="tag bg-slate-600/50 text-xs shrink-0">${esc(n.type)}</span>
-                    <span id="sub-node-status-${i}" class="inline-flex items-center gap-1 text-xs text-slate-400 ml-auto" title="未检测">
+                    <span id="sub-node-status-${i}" class="inline-flex items-center gap-1 text-xs text-slate-400 sm:ml-auto" title="未检测">
                        <span class="w-2 h-2 rounded-full bg-slate-500"></span>
                        <span class="latency-text">-</span>
                     </span>

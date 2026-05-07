@@ -1,6 +1,10 @@
 {# 主界面顶栏：Logo、主题切换、退出 #}
             <header class="border-b px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
+                    <button type="button" class="nav-toggle btn btn-secondary btn-sm p-2 lg:hidden" title="展开导航"
+                        aria-label="展开导航" aria-controls="mainNav" aria-expanded="false" onclick="toggleMobileNav()">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
                     <img src="/static/favicon.svg" alt="" width="32" height="32" class="app-logo-sm" decoding="async">
                     <h1 class="text-lg font-bold truncate">Clash Hub</h1>
                 </div>

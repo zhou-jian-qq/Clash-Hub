@@ -4,7 +4,7 @@
                             <h2 class="text-xl font-bold">订阅管理</h2>
                             <div
                                 class="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 pt-2 border-t border-slate-200/80 dark:border-slate-700/60">
-                                <div class="flex items-center gap-4">
+                                <div class="flex flex-wrap items-center gap-3 sm:gap-4">
                                     <label
                                         class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none shrink-0"
                                         title="勾选列表中的订阅">
@@ -14,7 +14,7 @@
                                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="batchDeleteSubs()"
                                         title="删除已勾选的订阅">批量删除</button>
                                 </div>
-                                <div class="flex flex-wrap gap-2 items-center justify-end">
+                                <div class="flex flex-wrap gap-2 items-center justify-start sm:justify-end w-full sm:w-auto">
                                     <button type="button" class="btn btn-ghost btn-sm"
                                         onclick="refreshAllSubs()">全部刷新</button>
                                     <button type="button" class="btn btn-outline-accent btn-sm" onclick="batchCheckSubs()"

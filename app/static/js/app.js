@@ -19,6 +19,7 @@ function switchPage(name, el_or_push = true) {
     if (name === 'imports') loadImportBatches();
     if (name === 'config') loadConfigPage();
     if (name === 'logs') loadSubLogs(1);
+    closeMobileNav();
 
     // 兼容原有的 el 参数
     let push = typeof el_or_push === 'boolean' ? el_or_push : true;
@@ -30,6 +31,28 @@ function switchPage(name, el_or_push = true) {
         }
     }
 }
+
+function setMobileNav(open) {
+    document.body.classList.toggle('nav-open', open);
+    const btn = document.querySelector('.nav-toggle');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function toggleMobileNav() {
+    setMobileNav(!document.body.classList.contains('nav-open'));
+}
+
+function closeMobileNav() {
+    setMobileNav(false);
+}
+
+window.setMobileNav = setMobileNav;
+window.toggleMobileNav = toggleMobileNav;
+window.closeMobileNav = closeMobileNav;
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMobileNav();
+});
 
 function handleRoute() {
     const path = window.location.pathname;
