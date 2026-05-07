@@ -9,6 +9,10 @@ function buildSubscriptionUrl(subUuid) {
     return location.origin + '/sub/' + subUuid + '?name=' + encodeURIComponent(SUB_CLIENT_NAME);
 }
 
+function buildV2raySubscriptionUrl(subUuid) {
+    return location.origin + '/sub/' + subUuid + '/v2ray';
+}
+
 async function loadHome() {
     try {
         const t = await api('/api/traffic');
@@ -35,6 +39,7 @@ async function loadHome() {
       </div>`;
         const s = await api('/api/settings');
         window._subBaseUrl = buildSubscriptionUrl(s.sub_uuid);
+        window._subV2rayUrl = buildV2raySubscriptionUrl(s.sub_uuid);
         renderHomeClientPanels();
         const genericUrlInput = document.getElementById('genericSubUrlInput');
         if (genericUrlInput) genericUrlInput.value = window._subBaseUrl;
@@ -73,6 +78,7 @@ function renderHomeClientPanels() {
     const oneImport = `<button type="button" class="btn btn-primary btn-sm" onclick="openImportClash()">一键导入</button>`;
     const oneImportMeta = `<button type="button" class="btn btn-primary btn-sm" onclick="openImportClashMeta()">一键导入</button>`;
     const copySub = `<button type="button" class="btn btn-outline-accent btn-sm" onclick="copyGenericSub()">复制订阅</button>`;
+    const copyV2ray = `<button type="button" class="btn btn-outline-accent btn-sm" onclick="copyV2raySub()">复制订阅</button>`;
     const sr = `<button type="button" class="btn btn-primary btn-sm" onclick="openShadowrocket()">一键导入</button>`;
 
     const iconClash = '<i data-lucide="cat" class="w-5 h-5 text-indigo-400"></i>';
@@ -86,13 +92,13 @@ function renderHomeClientPanels() {
         clientRow(iconR, 'Shadowrocket', sr);
 
     document.getElementById('homeSubPanelAndroid').innerHTML =
-        clientRow(iconV, 'V2rayNG', copySub) +
+        clientRow(iconV, 'V2rayNG', copyV2ray) +
         clientRow(iconM, 'Clash Meta for Android', oneImportMeta);
 
     document.getElementById('homeSubPanelDesktop').innerHTML =
         clientRow(iconClash, 'Clash for Windows / macOS', oneImport) +
         clientRow(iconM, 'Clash Meta', oneImportMeta) +
-        clientRow(iconV, 'v2rayN', copySub);
+        clientRow(iconV, 'v2rayN', copyV2ray);
 
     if (window.lucide) {
         lucide.createIcons();
@@ -117,11 +123,18 @@ async function copyGenericSub() {
     await copyText(u, '已复制通用订阅链接');
 }
 
+async function copyV2raySub() {
+    const u = window._subV2rayUrl;
+    if (!u) { toast('请先加载首页', 'error'); return; }
+    await copyText(u, '已复制 V2Ray 订阅链接');
+}
+
 async function resetSubUuid() {
     if (!confirm('重置后旧订阅链接将立即失效，客户端需重新导入。确定？')) return;
     try {
         const d = await api('/api/settings/reset-uuid', { method: 'POST', body: '{}' });
         window._subBaseUrl = buildSubscriptionUrl(d.sub_uuid);
+        window._subV2rayUrl = buildV2raySubscriptionUrl(d.sub_uuid);
         renderHomeClientPanels();
         const genericUrlInput = document.getElementById('genericSubUrlInput');
         if (genericUrlInput) genericUrlInput.value = window._subBaseUrl;

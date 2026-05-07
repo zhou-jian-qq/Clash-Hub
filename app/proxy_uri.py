@@ -325,6 +325,179 @@ def _parse_trojan(uri: str) -> dict[str, Any] | None:
         return None
 
 
+def proxy_dict_to_uri(proxy: dict) -> str | None:
+    """将 Clash proxy 字典转换回分享链接 URI 字符串；不支持的协议返回 None。"""
+    t = (proxy.get("type") or "").lower()
+    if t == "vmess":
+        return _clash_vmess_to_uri(proxy)
+    if t == "vless":
+        return _clash_vless_to_uri(proxy)
+    if t == "ss":
+        return _clash_ss_to_uri(proxy)
+    if t == "ssr":
+        return _clash_ssr_to_uri(proxy)
+    if t == "trojan":
+        return _clash_trojan_to_uri(proxy)
+    if t == "hysteria2":
+        return _clash_hysteria2_to_uri(proxy)
+    return None
+
+
+def _clash_vmess_to_uri(p: dict) -> str | None:
+    """Clash vmess 字典 → vmess:// URI。"""
+    try:
+        name = str(p.get("name") or "VMess")
+        net = str(p.get("network") or "tcp").lower()
+        tls_val = "tls" if p.get("tls") else ""
+        host_val = ""
+        path_val = ""
+        ws = p.get("ws-opts")
+        if isinstance(ws, dict):
+            path_val = str(ws.get("path") or "")
+            headers = ws.get("headers")
+            if isinstance(headers, dict):
+                host_val = str(headers.get("Host") or "")
+        grpc = p.get("grpc-opts")
+        if isinstance(grpc, dict):
+            path_val = str(grpc.get("grpc-service-name") or "")
+        if not host_val and p.get("servername"):
+            host_val = str(p["servername"])
+        j = {
+            "v": "2",
+            "ps": name,
+            "add": str(p["server"]),
+            "port": str(p["port"]),
+            "id": str(p["uuid"]),
+            "aid": str(p.get("alterId") or 0),
+            "scy": str(p.get("cipher") or "auto"),
+            "net": net,
+            "type": "",
+            "host": host_val,
+            "path": path_val,
+            "tls": tls_val,
+        }
+        payload = base64.b64encode(json.dumps(j, ensure_ascii=False).encode()).decode()
+        return "vmess://" + payload
+    except Exception:
+        return None
+
+
+def _clash_vless_to_uri(p: dict) -> str | None:
+    """Clash vless 字典 → vless:// URI。"""
+    try:
+        name = urllib.parse.quote(str(p.get("name") or "VLESS"), safe="")
+        server = str(p["server"])
+        port = str(p["port"])
+        uid = urllib.parse.quote(str(p["uuid"]), safe="")
+        params: dict[str, str] = {}
+        if p.get("tls"):
+            params["security"] = "tls"
+        if p.get("servername"):
+            params["sni"] = str(p["servername"])
+        if p.get("client-fingerprint"):
+            params["fp"] = str(p["client-fingerprint"])
+        if p.get("flow"):
+            params["flow"] = str(p["flow"])
+        if p.get("skip-cert-verify"):
+            params["allowInsecure"] = "1"
+        net = str(p.get("network") or "tcp")
+        params["type"] = net
+        ws = p.get("ws-opts")
+        if net == "ws" and isinstance(ws, dict):
+            params["path"] = urllib.parse.quote(str(ws.get("path") or "/"), safe="")
+            headers = ws.get("headers")
+            if isinstance(headers, dict) and headers.get("Host"):
+                params["host"] = str(headers["Host"])
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        uri = f"vless://{uid}@{server}:{port}"
+        if query:
+            uri += "?" + query
+        return uri + "#" + name
+    except Exception:
+        return None
+
+
+def _clash_ss_to_uri(p: dict) -> str | None:
+    """Clash ss 字典 → ss:// URI（SIP002 格式）。"""
+    try:
+        name = urllib.parse.quote(str(p.get("name") or "SS"), safe="")
+        method = str(p.get("cipher") or "aes-256-gcm")
+        password = str(p.get("password") or "")
+        server = str(p["server"])
+        port = str(p["port"])
+        userinfo = base64.urlsafe_b64encode(f"{method}:{password}".encode()).decode().rstrip("=")
+        return f"ss://{userinfo}@{server}:{port}#{name}"
+    except Exception:
+        return None
+
+
+def _clash_ssr_to_uri(p: dict) -> str | None:
+    """Clash ssr 字典 → ssr:// URI。"""
+    try:
+        server = str(p["server"])
+        port = str(p["port"])
+        protocol = str(p.get("protocol") or "origin")
+        method = str(p.get("cipher") or "none")
+        obfs = str(p.get("obfs") or "plain")
+        password_b64 = base64.b64encode(str(p.get("password") or "").encode()).decode().rstrip("=")
+        main = f"{server}:{port}:{protocol}:{method}:{obfs}:{password_b64}"
+        name_b64 = base64.b64encode(str(p.get("name") or "SSR").encode()).decode().rstrip("=")
+        params = f"remarks={name_b64}"
+        if p.get("obfs-param"):
+            ob = base64.b64encode(str(p["obfs-param"]).encode()).decode().rstrip("=")
+            params += f"&obfsparam={ob}"
+        if p.get("protocol-param"):
+            pp = base64.b64encode(str(p["protocol-param"]).encode()).decode().rstrip("=")
+            params += f"&protoparam={pp}"
+        raw = f"{main}?{params}"
+        encoded = base64.b64encode(raw.encode()).decode().rstrip("=")
+        return f"ssr://{encoded}"
+    except Exception:
+        return None
+
+
+def _clash_trojan_to_uri(p: dict) -> str | None:
+    """Clash trojan 字典 → trojan:// URI。"""
+    try:
+        name = urllib.parse.quote(str(p.get("name") or "Trojan"), safe="")
+        password = urllib.parse.quote(str(p.get("password") or ""), safe="")
+        server = str(p["server"])
+        port = str(p["port"])
+        params: dict[str, str] = {}
+        if p.get("sni"):
+            params["sni"] = str(p["sni"])
+        if p.get("skip-cert-verify"):
+            params["allowInsecure"] = "1"
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        uri = f"trojan://{password}@{server}:{port}"
+        if query:
+            uri += "?" + query
+        return uri + "#" + name
+    except Exception:
+        return None
+
+
+def _clash_hysteria2_to_uri(p: dict) -> str | None:
+    """Clash hysteria2 字典 → hysteria2:// URI。"""
+    try:
+        name = urllib.parse.quote(str(p.get("name") or "Hysteria2"), safe="")
+        auth = urllib.parse.quote(str(p.get("password") or ""), safe="")
+        server = str(p["server"])
+        port = str(p["port"])
+        params: dict[str, str] = {}
+        if p.get("sni"):
+            params["sni"] = str(p["sni"])
+        if p.get("skip-cert-verify"):
+            params["insecure"] = "1"
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        uri = f"hysteria2://{auth}@{server}:{port}"
+        if query:
+            uri += "?" + query
+        return uri + "#" + name
+    except Exception:
+        return None
+
+
 def _parse_hysteria2(uri: str) -> dict[str, Any] | None:
     try:
         if uri.lower().startswith("hy2://"):

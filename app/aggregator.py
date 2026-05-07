@@ -650,6 +650,28 @@ def build_config(
     return yaml.dump(config, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
 
+# ─── V2Ray 订阅格式导出 ───
+def build_v2ray_subscription(
+    proxies: list[dict],
+    include_types: list[str] | None = None,
+    exclude_types: list[str] | None = None,
+    exclude_keywords: list[str] | None = None,
+) -> str:
+    """将 Clash proxy 列表转换为 V2Ray 订阅格式（Base64 编码的代理 URI 列表）。
+
+    V2rayNG / v2rayN 等客户端通过此格式解析订阅，每行一个分享链接，整体 Base64 编码。
+    """
+    from proxy_uri import proxy_dict_to_uri
+    filtered = filter_proxies(proxies, include_types, exclude_types, exclude_keywords)
+    uris = []
+    for p in filtered:
+        uri = proxy_dict_to_uri(p)
+        if uri:
+            uris.append(uri)
+    content = "\n".join(uris)
+    return base64.b64encode(content.encode("utf-8")).decode("ascii")
+
+
 # ─── 流量汇总 ───
 def aggregate_traffic(subscriptions: list[dict]) -> dict:
     """汇总订阅列表的总已用流量、总配额、最早过期时间与可读日期（仅统计 enabled 为真的行）。"""

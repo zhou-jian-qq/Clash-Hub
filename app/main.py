@@ -29,6 +29,7 @@ from aggregator import (
     parse_proxies,
     extract_proxies_for_batch_import,
     build_config,
+    build_v2ray_subscription,
     aggregate_traffic,
     fetch_all_subscriptions,
     check_subscription_availability,
@@ -1227,6 +1228,59 @@ async def get_aggregated_sub(sub_uuid: str, request: Request, db: AsyncSession =
         headers={
             "Subscription-Userinfo": userinfo_hdr,
             "Content-Disposition": f"attachment; filename={SUBSCRIPTION_PROFILE_FILENAME}",
+        },
+    )
+
+
+@app.get("/sub/{sub_uuid}/v2ray")
+async def get_v2ray_sub(sub_uuid: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """V2Ray 格式订阅端点（供 V2rayNG / v2rayN 等客户端使用）。
+
+    返回 Base64 编码的代理 URI 列表，每行一个分享链接（vmess://、vless://、ss:// 等）。
+    """
+    stored_uuid = await _get_setting(db, "sub_uuid", "")
+    if sub_uuid != stored_uuid:
+        raise HTTPException(403, "无效的订阅链接")
+
+    direct_ip, real_ip = _extract_real_ip(request)
+    user_agent = request.headers.get("User-Agent")
+    log_entry = SubAccessLog(
+        ip=direct_ip,
+        real_ip=real_ip,
+        user_agent=user_agent,
+    )
+    db.add(log_entry)
+    await db.commit()
+
+    result = await db.execute(select(Subscription).where(Subscription.enabled == True))  # noqa: E712
+    subs = [s.to_dict() for s in result.scalars().all()]
+    imported_proxies = await _collect_imported_proxies(db)
+
+    if not subs and not imported_proxies:
+        return PlainTextResponse("", media_type="text/plain; charset=utf-8")
+
+    include_raw = await _get_setting(db, "include_types", "")
+    exclude_raw = await _get_setting(db, "exclude_types", "")
+    exclude_kw_raw = await _get_setting(db, "exclude_keywords", "剩余流量,官网,重置,套餐到期,建议")
+    timeout = int(await _get_setting(db, "fetch_timeout", "30"))
+
+    include_types = [t.strip() for t in include_raw.split(",") if t.strip()] or None
+    exclude_types = [t.strip() for t in exclude_raw.split(",") if t.strip()] or None
+    exclude_keywords = [k.strip() for k in exclude_kw_raw.split(",") if k.strip()]
+
+    fetch_results = await fetch_all_subscriptions(subs, timeout) if subs else []
+    all_proxies: list[dict] = []
+    for fr in fetch_results:
+        all_proxies.extend(fr["proxies"])
+    all_proxies.extend(imported_proxies)
+
+    v2ray_content = build_v2ray_subscription(all_proxies, include_types, exclude_types, exclude_keywords)
+
+    return Response(
+        content=v2ray_content.encode("ascii"),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=v2ray_sub.txt",
         },
     )
 
