@@ -94,8 +94,9 @@ class TestCreateAccessToken:
             jwt.decode(token, "wrong-secret", algorithms=[ALGORITHM])
 
     def test_secret_key_change_invalidates_token(self):
+        """SECRET_KEY 切换后，旧 token 用新 KEY 解码应失败（模拟应用重启换 KEY 的场景）。"""
         from jose import JWTError
         token = create_access_token({"role": "admin"})
         init_secret_key("new-secret-key")
         with pytest.raises(JWTError):
-            jwt.decode(token, "test-secret-key-for-unit-tests", algorithms=[ALGORITHM])
+            jwt.decode(token, "new-secret-key", algorithms=[ALGORITHM])

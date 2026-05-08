@@ -112,12 +112,16 @@ def parse_userinfo(header: str) -> dict:
 
 
 # ─── Base64 解码 ───
-def try_decode_base64(text: str) -> str | None:
-    """对整段文本做标准 Base64 解码（含补齐 padding）。失败返回 None。
+def try_decode_base64(text: str | None) -> str | None:
+    """对整段文本做标准 Base64 解码（含补齐 padding）。空内容或失败均返回 None。
 
     用于订阅内容外层为 Base64 时的解码；与 proxy_uri 中带 urlsafe 尝试的解码策略不同。
     """
+    if not text:
+        return None
     text = text.strip()
+    if not text:
+        return None
     padded = text + "=" * (-len(text) % 4)
     try:
         return base64.b64decode(padded).decode("utf-8", errors="ignore")
@@ -126,34 +130,45 @@ def try_decode_base64(text: str) -> str | None:
 
 
 # ─── 解析订阅内容为 proxies 列表 ───
-def parse_proxies(content: str) -> list[dict]:
+def _try_parse_yaml_proxies(text: str) -> list[dict] | None:
+    """尝试将文本作为 Clash YAML 解析为 proxies 列表；失败/无效返回 None。"""
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None
+    if isinstance(data, dict) and "proxies" in data:
+        pl = data.get("proxies")
+        if isinstance(pl, list):
+            return [p for p in pl if isinstance(p, dict)]
+    if isinstance(data, list):
+        out = [p for p in data if isinstance(p, dict) and "name" in p and "type" in p]
+        if out:
+            return out
+    if (
+        isinstance(data, dict)
+        and "proxies" not in data
+        and "name" in data
+        and "type" in data
+    ):
+        return [data]
+    return None
+
+
+def parse_proxies(content: str | None) -> list[dict]:
     """将订阅正文解析为 Clash `proxies` 项列表。
 
-    依次尝试：Clash YAML（含 proxies / 根列表 / 单节点 dict）、纯分享链接行、Base64 内嵌多行 URI。
+    依次尝试：Clash YAML（含 proxies / 根列表 / 单节点 dict）、纯分享链接行、
+    Base64 解码后的 YAML、Base64 解码后的多行 URI。空/None 输入返回空列表。
     """
+    if not content:
+        return []
     content = _normalize_pasted_yaml_whitespace(content.strip())
     if not content:
         return []
 
-    try:
-        data = yaml.safe_load(content)
-        if isinstance(data, dict) and "proxies" in data:
-            pl = data.get("proxies")
-            if isinstance(pl, list):
-                return [p for p in pl if isinstance(p, dict)]
-        if isinstance(data, list):
-            out = [p for p in data if isinstance(p, dict) and "name" in p and "type" in p]
-            if out:
-                return out
-        if (
-            isinstance(data, dict)
-            and "proxies" not in data
-            and "name" in data
-            and "type" in data
-        ):
-            return [data]
-    except yaml.YAMLError:
-        pass
+    parsed = _try_parse_yaml_proxies(content)
+    if parsed:
+        return parsed
 
     lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
     uri_lines = [ln for ln in lines if looks_like_proxy_uri_line(ln)]
@@ -173,7 +188,13 @@ def parse_proxies(content: str) -> list[dict]:
 
     decoded = try_decode_base64(content)
     if decoded:
-        return _parse_uri_lines(decoded)
+        decoded_norm = _normalize_pasted_yaml_whitespace(decoded.strip())
+        parsed = _try_parse_yaml_proxies(decoded_norm) if decoded_norm else None
+        if parsed:
+            return parsed
+        uris = _parse_uri_lines(decoded)
+        if uris:
+            return uris
 
     return _parse_uri_lines(content)
 
@@ -262,12 +283,18 @@ def filter_proxies(
 
 
 def rename_proxies(proxies: list[dict], prefix: str) -> list[dict]:
-    """为每条 proxy 的 name 添加 `[prefix] ` 前缀；prefix 为空则原样返回。"""
+    """为每条 proxy 的 name 添加 `[prefix] ` 前缀；prefix 为空则原样返回。
+
+    返回新列表（每个元素为浅拷贝），不会修改入参列表中的 dict。
+    """
     if not prefix:
         return proxies
+    renamed: list[dict] = []
     for p in proxies:
-        p["name"] = f"[{prefix}] {p['name']}"
-    return proxies
+        np = dict(p)
+        np["name"] = f"[{prefix}] {p.get('name', '')}"
+        renamed.append(np)
+    return renamed
 
 
 # ─── 并发抓取 ───

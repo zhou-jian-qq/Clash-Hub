@@ -70,3 +70,4 @@ temp/
 
 # Playwright / MCP 等本地工具输出
 .playwright-mcp/
+.codex/codex_with_cc

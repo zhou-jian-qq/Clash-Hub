@@ -134,8 +134,8 @@ class TestRenameProxies:
     def test_prefix_applied(self):
         proxies = [{"name": "Node1", "type": "ss"}, {"name": "Node2", "type": "trojan"}]
         renamed = rename_proxies(proxies, "MyPrefix")
-        assert renamed[0]["name"].startswith("MyPrefix")
-        assert renamed[1]["name"].startswith("MyPrefix")
+        assert renamed[0]["name"] == "[MyPrefix] Node1"
+        assert renamed[1]["name"] == "[MyPrefix] Node2"
 
     def test_empty_prefix_keeps_name(self):
         proxies = [{"name": "Node1", "type": "ss"}]

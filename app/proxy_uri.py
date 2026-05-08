@@ -73,15 +73,42 @@ def _name_from_fragment(uri: str, default: str) -> str:
 
 
 def _parse_ss(uri: str) -> dict[str, Any] | None:
+    """解析 ss:// URI，兼容两种格式：
+
+    - 传统格式：ss://BASE64(method:password@host:port)#name
+    - SIP002 格式：ss://BASE64(method:password)@host:port#name
+    """
     try:
         rest = uri[5:]
         name = _name_from_fragment(uri, "SS")
         if "#" in rest:
             rest = rest.split("#", 1)[0]
-        # ss://BASE64(method:password@host:port)
         body = rest.split("?", 1)[0]
+
+        # SIP002：base64 部分仅在 @ 之前
+        if "@" in body:
+            userinfo_b64, hostport = body.rsplit("@", 1)
+            if ":" in hostport:
+                host, port_s = hostport.rsplit(":", 1)
+                decoded_userinfo = _b64_decode(userinfo_b64) or urllib.parse.unquote(userinfo_b64)
+                if decoded_userinfo and ":" in decoded_userinfo:
+                    method, password = decoded_userinfo.split(":", 1)
+                    try:
+                        port = int(port_s)
+                    except ValueError:
+                        return None
+                    return {
+                        "name": name,
+                        "type": "ss",
+                        "server": host.strip("[]"),
+                        "port": port,
+                        "cipher": method,
+                        "password": password,
+                    }
+
+        # 传统格式：整体 base64 解码后形如 method:password@host:port
         decoded = _b64_decode(body)
-        if "@" in decoded and ":" in decoded:
+        if decoded and "@" in decoded and ":" in decoded:
             mp, hostport = decoded.rsplit("@", 1)
             if ":" not in hostport:
                 return None
@@ -89,8 +116,11 @@ def _parse_ss(uri: str) -> dict[str, Any] | None:
             if ":" not in mp:
                 return None
             idx = mp.index(":")
-            method, password = mp[:idx], mp[idx + 1 :]
-            port = int(port_s)
+            method, password = mp[:idx], mp[idx + 1:]
+            try:
+                port = int(port_s)
+            except ValueError:
+                return None
             return {
                 "name": name,
                 "type": "ss",

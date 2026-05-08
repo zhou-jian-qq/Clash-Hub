@@ -7,6 +7,7 @@ httpx[socks]
 pyyaml
 python-jose[cryptography]
 passlib[bcrypt]
+bcrypt<4.0
 apscheduler
 pytest
 pytest-asyncio
