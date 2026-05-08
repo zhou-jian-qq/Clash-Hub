@@ -19,8 +19,29 @@
                     decoding="async">
                 <h1 class="text-2xl font-bold mb-1">Clash Hub</h1>
                 <p class="text-slate-400 mb-6 text-sm">订阅聚合管理</p>
-                <input id="pwdInput" type="password" placeholder="管理密码" class="mb-4"
-                    onkeydown="if(event.key==='Enter')doLogin()">
+                <div class="relative mb-4">
+                    <input id="pwdInput" type="password" placeholder="管理密码" class="w-full pr-10"
+                        onkeydown="if(event.key==='Enter')doLogin()">
+                    <button type="button" tabindex="-1"
+                        class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                        onclick="(function(b){var i=document.getElementById('pwdInput');var show=i.type==='password';i.type=show?'text':'password';b.querySelector('.eye-open').classList.toggle('hidden',show);b.querySelector('.eye-closed').classList.toggle('hidden',!show);})(this)"
+                        aria-label="显示/隐藏密码">
+                        <!-- 睁眼（默认显示，密码隐藏时展示此图标） -->
+                        <svg class="eye-open w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                        <!-- 闭眼（密码明文时展示此图标） -->
+                        <svg class="eye-closed w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7a9.97 9.97 0 012.58-4.025M6.938 6.938A9.953 9.953 0 0112 5c4.477 0 8.268 2.943 9.542 7a9.972 9.972 0 01-1.93 3.293M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 3l18 18"/>
+                        </svg>
+                    </button>
+                </div>
                 <button class="btn btn-primary w-full" onclick="doLogin()">登 录</button>
                 <p id="loginErr" class="text-red-400 text-sm mt-3 hidden"></p>
             </div>
