@@ -1,14 +1,14 @@
 /**
  * Clash Hub 管理后台 — 核心工具与全局状态
- * - 全局变量、api()/toast、时间格式化、转义、主题、登录/登出
- * - 依赖：无（先于其它 /static/js/* 加载）；内联 HTML 通过全局函数名调用
+ * - api()/toast、时间格式化、转义工具、主题、登录/登出、renderLatencyBar
+ * - 依赖：无（先于其它 /static/js/* 加载）
+ *
+ * 编码约定（迁移 Alpine.js 后）：
+ * - 新代码必须使用 Alpine x-data / x-for / x-model 声明式渲染，禁止再用 innerHTML 拼字符串。
+ * - 命令式 esc/innerHTML 模式仅保留给既有的 showResultModal 弹窗，不得在新代码中扩展。
+ * - 全局变量（_subsCache/_importBatchesCache/...）已迁入 Alpine.store，此处不再声明。
  */
 const API = '';
-let _subsCache = [];
-let _importBatchesCache = [];
-let _previewTimer = null;
-let _previewMode = 'yaml';
-let _lastPreview = null;
 
 function headers() { return { 'Content-Type': 'application/json' }; }
 
@@ -99,11 +99,50 @@ function formatIsoTime(iso) {
     } catch (_) { return String(iso); }
 }
 
+/** DOM 转义（供遗留命令式弹窗使用，新代码请用 Alpine x-text） */
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+/**
+ * HTML 实体转义：修复了原版 `<` 被误转为 `&gt;` 的 bug。
+ * 同时补全 " 和 ' 的转义，使其可安全用于 attribute 上下文。
+ */
 function escHtml(s) {
     if (s == null) return '';
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&gt;').replace(/>/g, '&gt;');
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/** 属性值转义助手，语义上更明确（内部复用 escHtml） */
+function attr(s) { return escHtml(s); }
+
+/**
+ * 安全模板标签函数：替代手写 `${esc(x)}` 的字符串拼接，默认转义所有插值。
+ *
+ *   const html = safeHtml`<div title="${title}">${name}</div>`;
+ *   el.innerHTML = html;
+ *
+ * 若某段插值是已经安全的 HTML 片段，用 raw(htmlStr) 包装以跳过转义：
+ *   safeHtml`<ul>${raw(itemsHtml)}</ul>`
+ */
+function raw(s) { return { __safeHtmlRaw: true, value: s == null ? '' : String(s) }; }
+
+function safeHtml(strings, ...values) {
+    let out = '';
+    for (let i = 0; i < strings.length; i++) {
+        out += strings[i];
+        if (i < values.length) out += _safeHtmlVal(values[i]);
+    }
+    return out;
+}
+function _safeHtmlVal(v) {
+    if (v == null || v === false) return '';
+    if (v && typeof v === 'object' && v.__safeHtmlRaw) return v.value;
+    if (Array.isArray(v)) return v.map(_safeHtmlVal).join('');
+    return escHtml(v);
 }
 
 /** 统一的检测结果弹窗样式 */

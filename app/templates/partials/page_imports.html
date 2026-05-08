@@ -1,14 +1,222 @@
-{# 节点管理：标题单独一行；说明与「批量导入」同一行（左文右钮，窄屏自动换行） #}
-                    <div id="page-imports" class="hidden">
-                        <div class="mb-4 space-y-3">
-                            <h2 class="text-xl font-bold">节点管理</h2>
-                            <div
-                                class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-1 border-t border-slate-200/80 dark:border-slate-700/60">
-                                <p class="text-sm text-slate-500 dark:text-slate-400 flex-1 min-w-0">
-                                    同一批次下的节点会分组展示；聚合时节点名带「批次名_序号」前缀。与<strong>订阅管理</strong>中的链接相互独立。</p>
-                                <button type="button" class="btn btn-primary btn-sm shrink-0 w-full sm:w-auto"
-                                    onclick="showBatchImportModal()">批量导入</button>
+{# 节点管理 — Alpine.js 响应式版本 #}
+<div id="page-imports" class="hidden" x-data="{
+    get store() { return $store.imports; },
+
+    /* ── 批量导入弹窗 ── */
+    importModal: false,
+    importForm: { name: '导入', text: '' },
+    openImport() {
+        this.importForm = { name: '导入', text: '' };
+        this.importModal = true;
+        this.$nextTick(() => { const el = document.getElementById('mImportName'); if (el) el.focus(); });
+    },
+    async submitImport() {
+        const { name, text } = this.importForm;
+        if (!name.trim()) { toast('请填写批次名称', 'error'); return; }
+        if (!text.trim()) { toast('请粘贴分享链接或 proxies 配置', 'error'); return; }
+        await $store.imports.importBatch(name.trim(), text);
+        this.importModal = false;
+    },
+
+    /* ── 批次改名弹窗 ── */
+    renameModal: false,
+    renameForm: { id: null, name: '' },
+    openRename(b) {
+        this.renameForm = { id: b.id, name: b.name };
+        this.renameModal = true;
+        this.$nextTick(() => { const el = document.getElementById('mRenameName'); if (el) { el.focus(); el.select(); } });
+    },
+    async submitRename() {
+        if (!this.renameForm.name.trim()) { toast('名称不能为空', 'error'); return; }
+        await $store.imports.renameBatch(this.renameForm.id, this.renameForm.name.trim());
+        this.renameModal = false;
+    },
+
+    /* ── 节点编辑弹窗 ── */
+    nodeEditModal: false,
+    nodeEditForm: { id: null, proxy_yaml: '' },
+    openNodeEdit(n) {
+        this.nodeEditForm = { id: n.id, proxy_yaml: n.proxy_yaml };
+        this.nodeEditModal = true;
+    },
+    async submitNodeEdit() {
+        if (!this.nodeEditForm.proxy_yaml.trim()) { toast('内容不能为空', 'error'); return; }
+        await $store.imports.saveNodeYaml(this.nodeEditForm.id, this.nodeEditForm.proxy_yaml);
+        this.nodeEditModal = false;
+    },
+    async copyNodeAsV2ray() {
+        await $store.imports.nodeToV2rayUri(this.nodeEditForm.proxy_yaml);
+    },
+}" @keydown.escape.window="importModal = false; renameModal = false; nodeEditModal = false">
+
+    <!-- 工具栏 -->
+    <div class="mb-4 space-y-3">
+        <h2 class="text-xl font-bold">节点管理</h2>
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-1 border-t border-slate-200/80 dark:border-slate-700/60">
+            <p class="text-sm text-slate-500 dark:text-slate-400 flex-1 min-w-0">
+                同一批次下的节点会分组展示；聚合时节点名带「批次名_序号」前缀。与<strong>订阅管理</strong>中的链接相互独立。
+            </p>
+            <button type="button" class="btn btn-primary btn-sm shrink-0 w-full sm:w-auto" @click="openImport()">批量导入</button>
+        </div>
+    </div>
+
+    <!-- 批次树 -->
+    <div id="importsTree">
+        <template x-if="store.batches.length === 0">
+            <div class="card text-center text-slate-400 py-8">暂无导入批次，点击「批量导入」</div>
+        </template>
+
+        <template x-for="b in store.batches" :key="b.id">
+            <details class="card mb-2" open>
+                <summary class="cursor-pointer font-semibold flex flex-wrap items-center gap-2 py-2 px-2 list-none">
+                    <span class="select-none min-w-0 max-w-full break-words" x-text="b.name"></span>
+                    <span class="text-xs text-slate-400 font-normal">添加 <span x-text="formatIsoTime(b.created_at)"></span></span>
+                    <span class="text-xs text-slate-500 font-normal">更新 <span x-text="formatIsoTime(b.updated_at)"></span></span>
+                    <span class="flex flex-wrap gap-1 w-full sm:w-auto sm:ml-auto sm:justify-end"
+                        @click.prevent.stop>
+                        <button type="button" class="btn btn-outline-accent btn-sm"
+                            @click.stop="store.batchCheckBatch(b.id)"
+                            title="批量测速本批次所有节点">批量测速</button>
+                        <button type="button" class="btn btn-outline-warn btn-sm"
+                            @click.stop="store.setBatchAllEnabled(b.id, false)"
+                            title="本批次下全部节点设为禁用">批量禁用</button>
+                        <button type="button" class="btn btn-success btn-sm"
+                            @click.stop="store.setBatchAllEnabled(b.id, true)"
+                            title="本批次下全部节点设为启用">批量启用</button>
+                        <button type="button" class="btn btn-secondary btn-sm"
+                            @click.stop="openRename(b)">改名</button>
+                        <button type="button" class="btn btn-danger btn-sm"
+                            @click.stop="store.deleteBatch(b.id)">删除批次</button>
+                    </span>
+                </summary>
+                <div class="border-t border-slate-700 px-2 pb-2">
+                    <template x-if="!b.nodes || b.nodes.length === 0">
+                        <div class="text-slate-500 text-sm py-2">无节点</div>
+                    </template>
+                    <template x-for="n in (b.nodes || [])" :key="n.id">
+                        <div class="flex flex-wrap items-center gap-2 py-3 border-b border-slate-700/50 last:border-0 pl-2 md:pl-4">
+                            <label class="sub-switch mr-1 shrink-0" title="启用">
+                                <input type="checkbox" role="switch" aria-label="启用节点"
+                                    :checked="n.enabled"
+                                    @change="store.toggleNodeEnabled(n.id, $event.target.checked)">
+                                <span class="sub-switch-slider"></span>
+                            </label>
+                            <span class="font-medium min-w-0 flex-1 basis-[12rem] truncate md:max-w-none" x-text="n.display_name"></span>
+                            <span class="tag bg-slate-600/50 text-xs shrink-0" x-text="n.proxy_type"></span>
+                            <!-- 延迟状态 -->
+                            <span class="inline-flex items-center gap-1 text-xs ml-2">
+                                <template x-if="n._checking">
+                                    <span class="inline-flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                        <span class="text-slate-400">测速中...</span>
+                                    </span>
+                                </template>
+                                <template x-if="!n._checking && n._available === null && n.last_check_at">
+                                    <span class="inline-flex items-center gap-1"
+                                        :class="n.last_latency_ms != null && n.last_latency_ms >= 0 ? '' : 'text-red-500'">
+                                        <span class="w-2 h-2 rounded-full"
+                                            :class="n.last_latency_ms != null && n.last_latency_ms >= 0
+                                                ? (n.last_latency_ms <= 200 ? 'bg-green-500' : n.last_latency_ms <= 500 ? 'bg-yellow-400' : 'bg-red-500')
+                                                : 'bg-red-500'"></span>
+                                        <span x-text="n.last_latency_ms != null && n.last_latency_ms >= 0
+                                            ? Math.round(n.last_latency_ms) + ' ms' : '失败'"></span>
+                                    </span>
+                                </template>
+                                <template x-if="!n._checking && n._available === null && !n.last_check_at">
+                                    <span class="inline-flex items-center gap-1 text-slate-400">
+                                        <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                                        <span>-</span>
+                                    </span>
+                                </template>
+                                <template x-if="!n._checking && n._available === true">
+                                    <span class="inline-flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full"
+                                            :class="n._latencyMs <= 200 ? 'bg-green-500' : n._latencyMs <= 500 ? 'bg-yellow-400' : 'bg-red-500'"></span>
+                                        <span :class="n._latencyMs <= 200 ? 'text-green-500' : n._latencyMs <= 500 ? 'text-yellow-400' : 'text-red-500'"
+                                            x-text="Math.round(n._latencyMs) + ' ms'"></span>
+                                    </span>
+                                </template>
+                                <template x-if="!n._checking && n._available === false">
+                                    <span class="inline-flex items-center gap-1 text-red-500">
+                                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                                        <span>失败</span>
+                                    </span>
+                                </template>
+                            </span>
+                            <span class="text-xs text-slate-500 hidden sm:inline ml-1"
+                                x-text="n.last_check_at ? formatIsoTime(n.last_check_at) : formatIsoTime(n.updated_at)"></span>
+                            <div class="flex flex-wrap gap-1 w-full sm:w-auto sm:ml-auto sm:justify-end">
+                                <button type="button" class="btn btn-secondary btn-sm" @click="openNodeEdit(n)">编辑</button>
+                                <button type="button" class="btn btn-outline-accent btn-sm" @click="store.checkNode(n.id, true)">测速</button>
+                                <button type="button" class="btn btn-danger btn-sm" @click="store.deleteNode(n.id)">删除</button>
                             </div>
                         </div>
-                        <div id="importsTree"></div>
+                    </template>
+                </div>
+            </details>
+        </template>
+    </div>
+
+    <!-- ── 批量导入弹窗 ── -->
+    <template x-if="importModal">
+        <div class="modal-bg" @click.self="importModal = false">
+            <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold mb-3">批量导入节点</h3>
+                <p class="text-sm text-slate-400 mb-3">将创建<strong>一个批次</strong>。支持：<strong>①</strong> 每行一条分享链接；<strong>②</strong> 整段 Clash <code class="text-xs">proxies</code> YAML。聚合时节点前缀为「批次名_序号」。</p>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-sm text-slate-400">批次名称</label>
+                        <input id="mImportName" x-model="importForm.name" placeholder="例如：我的节点">
                     </div>
+                    <div>
+                        <label class="text-sm text-slate-400">分享链接或 proxies YAML</label>
+                        <textarea x-model="importForm.text" rows="14" class="font-mono text-sm w-full"
+                            placeholder="vmess://... 或 proxies:&#10;  - {name: ..., type: ss, ...}"></textarea>
+                    </div>
+                    <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+                        <button type="button" class="btn btn-secondary" @click="importModal = false">取消</button>
+                        <button type="button" class="btn btn-primary" @click="submitImport()">导入</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ── 批次改名弹窗 ── -->
+    <template x-if="renameModal">
+        <div class="modal-bg" @click.self="renameModal = false">
+            <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold mb-3">重命名批次</h3>
+                <p class="text-sm text-slate-400 mb-2">修改批次在列表中的名称。聚合时节点的默认前缀为「批次名_序号」。</p>
+                <div>
+                    <label class="text-sm text-slate-400">批次名称</label>
+                    <input id="mRenameName" x-model="renameForm.name" type="text" class="w-full mt-1"
+                        placeholder="例如：我的节点"
+                        @keydown.enter.prevent="submitRename()">
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end mt-3">
+                    <button type="button" class="btn btn-secondary" @click="renameModal = false">取消</button>
+                    <button type="button" class="btn btn-primary" @click="submitRename()">保存</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ── 节点编辑弹窗 ── -->
+    <template x-if="nodeEditModal">
+        <div class="modal-bg" @click.self="nodeEditModal = false">
+            <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold mb-3">编辑节点</h3>
+                <p class="text-sm text-slate-400 mb-2">可粘贴单节点 YAML、<code class="text-xs">proxies:</code> 片段或一行分享链接。</p>
+                <textarea x-model="nodeEditForm.proxy_yaml" rows="18" class="font-mono text-sm w-full"></textarea>
+                <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end mt-3">
+                    <button type="button" class="btn btn-secondary" @click="nodeEditModal = false">取消</button>
+                    <button type="button" class="btn btn-outline-accent" @click="copyNodeAsV2ray()"
+                        title="将当前节点转换为 vmess:// / vless:// 等分享链接并复制">复制 V2Ray 链接</button>
+                    <button type="button" class="btn btn-primary" @click="submitNodeEdit()">保存</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+</div>

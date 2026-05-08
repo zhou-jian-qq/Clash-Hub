@@ -1,32 +1,170 @@
-{# 首页 Tab：流量概览、订阅链接分设备、重置密钥 / 复制通用链接 #}
-                    <div id="page-home">
-                        <h2 class="text-xl font-bold mb-4">概览</h2>
-                        <div id="homeTraffic" class="mb-6"></div>
-                        <div class="card">
-                            <h3 class="text-lg font-bold mb-1">订阅链接获取</h3>
-                            <p class="text-sm text-slate-400 mb-4">按设备选择导入方式；泄露后可重置密钥使旧链接失效。</p>
-                            <div class="flex flex-wrap gap-1 border-b border-slate-700 mb-4" id="homeSubTabs">
-                                <button type="button" class="home-tab active" data-hometab="ios"
-                                    onclick="switchHomeSubTab('ios',this)">苹果手机软件</button>
-                                <button type="button" class="home-tab" data-hometab="android"
-                                    onclick="switchHomeSubTab('android',this)">安卓手机软件</button>
-                                <button type="button" class="home-tab" data-hometab="desktop"
-                                    onclick="switchHomeSubTab('desktop',this)">Windows 和 Mac 电脑</button>
-                            </div>
-                            <div id="homeSubPanelIos"></div>
-                            <div id="homeSubPanelAndroid" class="hidden"></div>
-                            <div id="homeSubPanelDesktop" class="hidden"></div>
-                            <div class="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-slate-700">
-                                <button type="button" class="btn btn-outline-danger flex-1"
-                                    onclick="resetSubUuid()">重置密钥</button>
-                                <button type="button" class="btn btn-primary flex-1"
-                                    onclick="copyGenericSub()">复制通用订阅链接</button>
-                            </div>
-                            
-                            <!-- 文本框展示订阅地址，方便手动复制 -->
-                            <div class="mt-4">
-                                <label for="genericSubUrlInput" class="block text-xs font-medium text-slate-400 mb-1">通用订阅地址 (可手动复制)</label>
-                                <input type="text" id="genericSubUrlInput" readonly class="input w-full text-xs text-slate-300 bg-slate-800/50" onclick="this.select()" />
-                            </div>
-                        </div>
+{# 首页 — Alpine.js 响应式版本 #}
+<div id="page-home" x-data="{
+    get h() { return $store.home; },
+}">
+
+    <h2 class="text-xl font-bold mb-4">概览</h2>
+
+    <!-- 流量概览 -->
+    <div id="homeTraffic" class="mb-6">
+        <template x-if="h.traffic">
+            <div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    <div class="card text-center">
+                        <div class="text-2xl font-bold text-green-500" x-text="formatBytes(h.traffic.remaining)"></div>
+                        <div class="text-sm text-slate-400 mt-1">剩余流量</div>
                     </div>
+                    <div class="card text-center">
+                        <div class="text-2xl font-bold" :style="'color:' + h.traffic._usedColor"
+                            x-text="formatBytes(h.traffic.total_used)"></div>
+                        <div class="text-sm text-slate-400 mt-1">使用流量</div>
+                    </div>
+                    <div class="card text-center">
+                        <div class="text-2xl font-bold" style="color:var(--accent)"
+                            x-text="formatBytes(h.traffic.total_total)"></div>
+                        <div class="text-sm text-slate-400 mt-1">总流量</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span>使用率</span>
+                        <span x-text="h.traffic._pct + '%'"></span>
+                    </div>
+                    <div class="progress-bar" style="height:.75rem">
+                        <div class="progress-fill"
+                            :style="'width:' + h.traffic._pct + '%;background:' + h.traffic._usedColor"></div>
+                    </div>
+                    <div class="text-sm text-slate-400 mt-3">
+                        最早到期: <span x-text="h.traffic.expire_date || '-'"></span>
+                    </div>
+                </div>
+            </div>
+        </template>
+        <template x-if="!h.traffic">
+            <div class="card text-slate-400 text-center py-6">加载中…</div>
+        </template>
+    </div>
+
+    <!-- 订阅链接获取 -->
+    <div class="card">
+        <h3 class="text-lg font-bold mb-1">订阅链接获取</h3>
+        <p class="text-sm text-slate-400 mb-4">按设备选择导入方式；泄露后可重置密钥使旧链接失效。</p>
+
+        <!-- Tab 切换 -->
+        <div class="flex flex-wrap gap-1 border-b border-slate-700 mb-4">
+            <button type="button" class="home-tab"
+                :class="h.activeTab === 'ios' ? 'active' : ''"
+                @click="h.activeTab = 'ios'; $nextTick(() => lucide.createIcons())">苹果手机软件</button>
+            <button type="button" class="home-tab"
+                :class="h.activeTab === 'android' ? 'active' : ''"
+                @click="h.activeTab = 'android'; $nextTick(() => lucide.createIcons())">安卓手机软件</button>
+            <button type="button" class="home-tab"
+                :class="h.activeTab === 'desktop' ? 'active' : ''"
+                @click="h.activeTab = 'desktop'; $nextTick(() => lucide.createIcons())">Windows 和 Mac 电脑</button>
+        </div>
+
+        <!-- iOS 面板 -->
+        <div x-show="h.activeTab === 'ios'">
+            <!-- Clash (iOS / Stash) -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 text-lg shadow-sm">
+                    <i data-lucide="cat" class="w-5 h-5 text-indigo-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">Clash（iOS / Stash 等）</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-primary btn-sm" @click="h.openImportClash()">一键导入</button>
+                </div>
+            </div>
+            <!-- Clash Meta -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 shadow-sm">
+                    <i data-lucide="cpu" class="w-5 h-5 text-violet-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">Clash Meta</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-primary btn-sm" @click="h.openImportClashMeta()">一键导入</button>
+                </div>
+            </div>
+            <!-- Shadowrocket -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 shadow-sm">
+                    <i data-lucide="rocket" class="w-5 h-5 text-orange-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">Shadowrocket</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-primary btn-sm" @click="h.openShadowrocket()">一键导入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Android 面板 -->
+        <div x-show="h.activeTab === 'android'">
+            <!-- V2rayNG -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 shadow-sm">
+                    <i data-lucide="zap" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">V2rayNG</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-outline-accent btn-sm" @click="h.copyV2raySub()">复制订阅</button>
+                </div>
+            </div>
+            <!-- Clash Meta for Android -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 shadow-sm">
+                    <i data-lucide="cpu" class="w-5 h-5 text-violet-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">Clash Meta for Android</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-primary btn-sm" @click="h.openImportClashMeta()">一键导入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop 面板 -->
+        <div x-show="h.activeTab === 'desktop'">
+            <!-- Clash for Windows / macOS -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 shadow-sm">
+                    <i data-lucide="cat" class="w-5 h-5 text-indigo-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">Clash for Windows / macOS</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-primary btn-sm" @click="h.openImportClash()">一键导入</button>
+                </div>
+            </div>
+            <!-- Clash Meta -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 shadow-sm">
+                    <i data-lucide="cpu" class="w-5 h-5 text-violet-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">Clash Meta</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-primary btn-sm" @click="h.openImportClashMeta()">一键导入</button>
+                </div>
+            </div>
+            <!-- v2rayN -->
+            <div class="client-row">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center shrink-0 shadow-sm">
+                    <i data-lucide="zap" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <div class="flex-1 min-w-0 font-medium">v2rayN</div>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button type="button" class="btn btn-outline-accent btn-sm" @click="h.copyV2raySub()">复制订阅</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-slate-700">
+            <button type="button" class="btn btn-outline-danger flex-1" @click="h.resetUuid()">重置密钥</button>
+            <button type="button" class="btn btn-primary flex-1" @click="h.copyGenericSub()">复制通用订阅链接</button>
+        </div>
+
+        <!-- 文本框展示订阅地址，方便手动复制 -->
+        <div class="mt-4">
+            <label class="block text-xs font-medium text-slate-400 mb-1">通用订阅地址 (可手动复制)</label>
+            <input type="text" readonly class="input w-full text-xs text-slate-300 bg-slate-800/50"
+                :value="h.subBaseUrl" @click="$event.target.select()">
+        </div>
+    </div>
+</div>

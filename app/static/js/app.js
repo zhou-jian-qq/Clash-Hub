@@ -1,89 +1,85 @@
 /**
- * 应用入口：Tab 路由、预览区防抖刷新
- * 依赖：core.js 与各 page-*.js 中的 load* 与全局函数（供 HTML onclick 使用）
+ * 应用入口：Tab 路由（基于 Alpine store）、移动端导航
+ * 依赖：core.js（api）、alpine/store.js（各 store 的 load action）
  */
-function switchPage(name, el_or_push = true) {
-    const pages = document.querySelectorAll('[id^="page-"]');
-    if (pages.length === 0) return; // 登录页无内容
-    
-    pages.forEach(p => p.classList.add('hidden'));
-    const page = document.getElementById('page-' + name);
-    if (page) page.classList.remove('hidden');
-    
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    const navEl = document.querySelector(`.nav-item[data-page="${name}"]`);
-    if (navEl) navEl.classList.add('active');
-    
-    if (name === 'home') loadHome();
-    if (name === 'subs') loadSubs();
-    if (name === 'imports') loadImportBatches();
-    if (name === 'config') loadConfigPage();
-    if (name === 'logs') loadSubLogs(1);
-    closeMobileNav();
 
-    // 兼容原有的 el 参数
-    let push = typeof el_or_push === 'boolean' ? el_or_push : true;
-    
-    if (push) {
-        const url = name === 'home' ? '/overview' : '/' + name;
-        if (window.location.pathname !== url) {
-            history.pushState({ page: name }, '', url);
-        }
-    }
-}
+document.addEventListener('alpine:init', () => {
 
+    /** 路由 store：维护当前激活的 Tab 名称 */
+    Alpine.store('router', {
+        current: 'home',
+
+        /** 切换页面：显示/隐藏 page-* 元素，更新导航高亮，触发对应 store.load，推送 history */
+        async go(name, push = true) {
+            if (!['home', 'subs', 'imports', 'config', 'logs'].includes(name)) name = 'home';
+
+            /* 显示/隐藏 */
+            document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
+            const page = document.getElementById('page-' + name);
+            if (page) page.classList.remove('hidden');
+
+            /* 导航高亮 */
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const navEl = document.querySelector(`.nav-item[data-page="${name}"]`);
+            if (navEl) navEl.classList.add('active');
+
+            this.current = name;
+            closeMobileNav();
+
+            /* 加载数据 */
+            if (name === 'home')    await Alpine.store('home').load();
+            if (name === 'subs')    await Alpine.store('subs').load();
+            if (name === 'imports') await Alpine.store('imports').load();
+            if (name === 'config')  await loadConfigPage();
+            if (name === 'logs')    await Alpine.store('logs').load(1);
+
+            /* 推送 URL */
+            if (push) {
+                const url = name === 'home' ? '/overview' : '/' + name;
+                if (window.location.pathname !== url) {
+                    history.pushState({ page: name }, '', url);
+                }
+            }
+        },
+
+        fromPath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/subs')) return 'subs';
+            if (path.startsWith('/imports')) return 'imports';
+            if (path.startsWith('/config')) return 'config';
+            if (path.startsWith('/logs')) return 'logs';
+            return 'home';
+        },
+    });
+});
+
+/* ── 移动端导航（保留全局函数供 main_header.html 的 onclick 使用） ── */
 function setMobileNav(open) {
     document.body.classList.toggle('nav-open', open);
     const btn = document.querySelector('.nav-toggle');
     if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
+function toggleMobileNav() { setMobileNav(!document.body.classList.contains('nav-open')); }
+function closeMobileNav()  { setMobileNav(false); }
 
-function toggleMobileNav() {
-    setMobileNav(!document.body.classList.contains('nav-open'));
-}
-
-function closeMobileNav() {
-    setMobileNav(false);
-}
-
-window.setMobileNav = setMobileNav;
+window.setMobileNav    = setMobileNav;
 window.toggleMobileNav = toggleMobileNav;
-window.closeMobileNav = closeMobileNav;
+window.closeMobileNav  = closeMobileNav;
 
-window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeMobileNav();
-});
-
-function handleRoute() {
-    const path = window.location.pathname;
-    let name = 'home';
-    if (path.startsWith('/overview')) name = 'home';
-    else if (path.startsWith('/subs')) name = 'subs';
-    else if (path.startsWith('/imports')) name = 'imports';
-    else if (path.startsWith('/config')) name = 'config';
-    else if (path.startsWith('/logs')) name = 'logs';
-    switchPage(name, false);
-}
-
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeMobileNav(); });
 window.addEventListener('popstate', () => {
-    handleRoute();
+    const name = Alpine.store('router').fromPath();
+    Alpine.store('router').go(name, false);
 });
 
-function schedulePreviewRefresh() {
-    const pc = document.getElementById('page-config');
-    if (!pc || pc.classList.contains('hidden')) return;
-    clearTimeout(_previewTimer);
-    _previewTimer = setTimeout(() => refreshPreview(), 500);
-}
-
-(async () => {
-    if (!window.location.pathname.startsWith('/login')) {
-        try { 
-            await api('/api/settings'); 
-            handleRoute();
-        }
-        catch (e) { 
-            console.error('初始化失败', e);
-        }
+/* ── 启动路由（等 Alpine 完成初始化再跑） ── */
+document.addEventListener('alpine:initialized', async () => {
+    if (window.location.pathname.startsWith('/login')) return;
+    try {
+        await api('/api/settings');
+        const name = Alpine.store('router').fromPath();
+        await Alpine.store('router').go(name, false);
+    } catch (e) {
+        console.error('初始化失败', e);
     }
-})();
+});

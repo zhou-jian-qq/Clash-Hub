@@ -1,361 +1,200 @@
 /**
- * 订阅管理：列表、启用开关、批量操作、添加/编辑订阅弹窗
- * 依赖：core.js（api、toast、_subsCache）；由 app.js 的 switchPage('subs') 触发 loadSubs
+ * 订阅管理 — Alpine store action 实现
+ * 在 alpine:init 事件中向 Alpine.store('subs') 注入所有 action。
+ * 依赖：core.js（api / toast / formatBytes / formatDate / formatIsoTime / showResultModal）
+ *       alpine/store.js（store 骨架）
  */
-async function loadSubs() {
-    try {
-        const subs = await api('/api/subscriptions');
-        _subsCache = subs;
-        const el = document.getElementById('subsList');
-        if (!subs.length) { el.innerHTML = '<div class="card text-center text-slate-400 py-8">暂无订阅，点击添加订阅</div>'; return; }
-        el.innerHTML = subs.map(s => {
-            const pct = s.total > 0 ? Math.min(100, (s.used / s.total * 100)).toFixed(1) : 0;
-            const color = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#22c55e';
-            return `<div class="card mb-3" data-sub-id="${s.id}">
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-3">
-  <div class="flex items-center gap-2 min-w-0 flex-wrap">
-    <input type="checkbox" class="sub-cb rounded border-slate-500 shrink-0" data-id="${s.id}" title="勾选后可批量启用/禁用/检测" onclick="event.stopPropagation()" onchange="syncSubSelectAll()">
-    <label class="sub-switch mr-1" title="${s.enabled ? '点击禁用' : '点击启用'}">
-      <input type="checkbox" role="switch" aria-label="启用订阅" ${s.enabled ? 'checked' : ''} onchange="toggleSubEnabled(${s.id}, this.checked)">
-      <span class="sub-switch-slider"></span>
-    </label>
-    <span class="tag ${s.enabled ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}">${s.enabled ? '启用' : '禁用'}</span>
-    <span class="font-semibold min-w-0 max-w-full break-words">${esc(s.name)}</span>
-    ${s.prefix ? `<span class="tag bg-blue-600/20 text-blue-400">${esc(s.prefix)}</span>` : ''}
-  </div>
-  <div class="flex flex-wrap gap-1 sm:justify-end">
-    <button type="button" class="btn btn-ghost btn-sm" onclick="refreshSub(${s.id})">刷新</button>
-    <button type="button" class="btn btn-outline-accent btn-sm" onclick="checkSub(${s.id})" title="检测：拉取+解析；单节点时额外 TCP 建连延迟">检测</button>
-    <button type="button" class="btn btn-outline-accent btn-sm" onclick="showSubNodesModal(${s.id})" title="查看并测速订阅下的节点">节点明细</button>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="showEditSub(${s.id})">编辑</button>
-    <button type="button" class="btn btn-danger btn-sm" onclick="deleteSub(${s.id})">删除</button>
-  </div>
-</div>
-<div class="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-1 sm:gap-4 text-sm text-slate-400 mb-2">
-  <span>节点: ${s.node_count}</span>
-  <span>已用: ${formatBytes(s.used)} / ${formatBytes(s.total)}</span>
-  <span>到期: ${formatDate(s.expire)}</span>
-  <span>同步: ${formatIsoTime(s.last_sync)}</span>
-  <span>添加: ${formatIsoTime(s.created_at)}</span>
-  <span>更新: ${formatIsoTime(s.updated_at)}</span>
-</div>
-<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
-      </div>`;
-        }).join('');
-        const sa = document.getElementById('subSelectAll');
-        if (sa) { sa.checked = false; sa.indeterminate = false; }
-    } catch (e) { toast(e.message, 'error'); }
-}
 
-function getSelectedSubIds() {
-    return Array.from(document.querySelectorAll('#subsList .sub-cb:checked')).map(cb => parseInt(cb.getAttribute('data-id'), 10)).filter(n => !isNaN(n));
-}
+document.addEventListener('alpine:init', () => {
+    const store = Alpine.store('subs');
 
-function toggleSelectAllSubs(checked) {
-    document.querySelectorAll('#subsList .sub-cb').forEach(cb => { cb.checked = checked; });
-    const sa = document.getElementById('subSelectAll');
-    if (sa) sa.indeterminate = false;
-}
+    /** 计算流量进度条所需的 _pct / _color 字段 */
+    function _enrichSub(s) {
+        const pct = s.total > 0 ? Math.min(100, (s.used / s.total) * 100) : 0;
+        s._pct = pct.toFixed(1);
+        s._color = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#22c55e';
+        return s;
+    }
 
-function syncSubSelectAll() {
-    const boxes = Array.from(document.querySelectorAll('#subsList .sub-cb'));
-    if (!boxes.length) return;
-    const n = boxes.length;
-    const c = boxes.filter(b => b.checked).length;
-    const sa = document.getElementById('subSelectAll');
-    if (!sa) return;
-    sa.checked = c === n;
-    sa.indeterminate = c > 0 && c < n;
-}
-
-async function batchEnableSubs(enabled) {
-    const ids = getSelectedSubIds();
-    if (!ids.length) { toast('请先勾选要操作的订阅', 'error'); return; }
-    try {
-        await api('/api/subscriptions/batch-enabled', { method: 'POST', body: JSON.stringify({ ids, enabled }) });
-        toast(enabled ? '已批量启用' : '已批量禁用');
-        await loadSubs();
-        schedulePreviewRefresh();
-    } catch (e) { toast(e.message, 'error'); }
-}
-
-async function batchDeleteSubs() {
-    const ids = getSelectedSubIds();
-    if (!ids.length) { toast('请先勾选要删除的订阅', 'error'); return; }
-    if (!confirm('将永久删除选中的 ' + ids.length + ' 条订阅，不可恢复。确定？')) return;
-    try {
-        const r = await api('/api/subscriptions/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) });
-        toast('已删除 ' + (r.deleted || ids.length) + ' 条');
-        await loadSubs();
-        schedulePreviewRefresh();
-    } catch (e) { toast(e.message, 'error'); }
-}
-
-function showAddSub() { showSubModal(); }
-
-function showEditSub(id) {
-    const sub = _subsCache.find(x => x.id === id);
-    if (!sub) { toast('未找到该订阅，请刷新列表后重试', 'error'); loadSubs(); return; }
-    showSubModal(sub);
-}
-
-function showSubModal(sub = null) {
-    const isEdit = !!sub;
-    const html = `<div class="modal-bg" id="subModal" onclick="if(event.target===this)this.remove()">
-    <div class="card w-full max-w-md max-h-[90vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4">${isEdit ? '编辑' : '添加'}订阅</h3>
-      <div class="space-y-3">
-<div><label class="text-sm text-slate-400">名称</label><input id="m_name" value="${esc(sub?.name || '')}"></div>
-<div><label class="text-sm text-slate-400">机场订阅链接</label><input id="m_url" value="${esc(sub?.url || '')}" placeholder="仅支持 https:// 或 http:// 订阅地址"></div>
-<div><label class="text-sm text-slate-400">前缀</label><input id="m_prefix" value="${esc(sub?.prefix || '')}" placeholder="可选, 用于区分来源"></div>
-<div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-  <label class="flex items-center gap-2"><input type="checkbox" id="m_enabled" ${!sub || sub.enabled ? 'checked' : ''}> 启用</label>
-  <label class="flex items-center gap-2"><input type="checkbox" id="m_autodis" ${!sub || sub.auto_disable ? 'checked' : ''}> 自动禁用</label>
-</div>
-<div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-  <button class="btn btn-secondary" onclick="document.getElementById('subModal').remove()">取消</button>
-  <button class="btn btn-primary" onclick="saveSub(${sub ? sub.id : 'null'})">${isEdit ? '保存' : '添加'}</button>
-</div>
-      </div>
-    </div>
-  </div>`;
-    document.body.insertAdjacentHTML('beforeend', html);
-}
-
-async function saveSub(id) {
-    const data = {
-        name: document.getElementById('m_name').value,
-        url: document.getElementById('m_url').value,
-        prefix: document.getElementById('m_prefix').value,
-        enabled: document.getElementById('m_enabled').checked,
-        auto_disable: document.getElementById('m_autodis').checked,
+    store.load = async function () {
+        try {
+            const subs = await api('/api/subscriptions');
+            this.items = subs.map(_enrichSub);
+            this.selectedIds = new Set();
+        } catch (e) { toast(e.message, 'error'); }
     };
-    if (!data.name || !data.url) { toast('名称和URL不能为空', 'error'); return; }
-    try {
-        if (id) {
-            await api('/api/subscriptions/' + id, { method: 'PUT', body: JSON.stringify(data) });
-        } else {
-            await api('/api/subscriptions', { method: 'POST', body: JSON.stringify(data) });
+
+    store.toggleEnabled = async function (id, enabled) {
+        try {
+            await api('/api/subscriptions/' + id, { method: 'PUT', body: JSON.stringify({ enabled }) });
+            toast(enabled ? '已启用' : '已禁用');
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) {
+            toast(e.message, 'error');
+            await this.load();
         }
-        document.getElementById('subModal')?.remove();
-        toast(id ? '已更新' : '已添加');
-        await loadSubs();
-        schedulePreviewRefresh();
-    } catch (e) { toast(e.message, 'error'); }
-}
+    };
 
-async function deleteSub(id) {
-    if (!confirm('确定删除？')) return;
-    try { await api('/api/subscriptions/' + id, { method: 'DELETE' }); toast('已删除'); await loadSubs(); schedulePreviewRefresh(); }
-    catch (e) { toast(e.message, 'error'); }
-}
+    store.batchEnable = async function (enabled) {
+        const ids = this.getSelectedIds();
+        if (!ids.length) { toast('请先勾选要操作的订阅', 'error'); return; }
+        try {
+            await api('/api/subscriptions/batch-enabled', { method: 'POST', body: JSON.stringify({ ids, enabled }) });
+            toast(enabled ? '已批量启用' : '已批量禁用');
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); }
+    };
 
-async function refreshSub(id) {
-    try { await api('/api/subscriptions/' + id + '/refresh', { method: 'POST' }); toast('刷新成功'); await loadSubs(); schedulePreviewRefresh(); }
-    catch (e) { toast(e.message, 'error'); }
-}
+    store.batchDelete = async function () {
+        const ids = this.getSelectedIds();
+        if (!ids.length) { toast('请先勾选要删除的订阅', 'error'); return; }
+        if (!confirm('将永久删除选中的 ' + ids.length + ' 条订阅，不可恢复。确定？')) return;
+        try {
+            const r = await api('/api/subscriptions/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+            toast('已删除 ' + (r.deleted || ids.length) + ' 条');
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); }
+    };
 
-async function refreshAllSubs() {
-    try { toast('正在刷新所有订阅...'); await api('/api/subscriptions/refresh-all', { method: 'POST' }); toast('全部刷新完成'); await loadSubs(); schedulePreviewRefresh(); }
-    catch (e) { toast(e.message, 'error'); }
-}
+    store.batchCheck = async function () {
+        const ids = this.getSelectedIds();
+        if (!ids.length) { toast('请先勾选要检测的订阅', 'error'); return; }
+        if (!confirm('将对选中的 ' + ids.length + ' 条订阅逐一检测。\n不可用且当前为「启用」的订阅将被自动禁用。\n确定继续？')) return;
+        try {
+            toast('正在批量检测，请稍候…');
+            const r = await api('/api/subscriptions/batch-check', { method: 'POST', body: JSON.stringify({ ids }) });
+            const n = r.auto_disabled || 0;
+            toast('检测完成：共 ' + (r.checked || 0) + ' 条，已自动禁用 ' + n + ' 条');
+            if (n > 0 && r.disabled_names && r.disabled_names.length)
+                alert('已自动禁用的订阅：\n' + r.disabled_names.join('\n'));
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); }
+    };
 
-/** 单条：只检测并提示，不自动改启用状态 */
-async function checkSub(id) {
-    try {
-        toast('正在检测…');
-        const r = await api('/api/subscriptions/' + id + '/check', { method: 'POST', body: '{}' });
-        const state = r.enabled ? '当前：启用' : '当前：禁用';
-        const head = r.available ? '检测通过（可用）' : '检测未通过（不可用）';
-        let tcpLine = '';
-        const pk = r.probe_kind || '';
-        if (r.latency_ms != null)
-            tcpLine = '\n延迟（' + (pk === 'httpx' ? '经代理 URL' : pk === 'mihomo' ? 'Mihomo URL' : pk === 'tcp-fallback' ? 'TCP 兜底' : '探测') + '）: ' + Math.round(r.latency_ms) + ' ms';
-        else if (r.tcp_tested && !r.available)
-            tcpLine = '\n已尝试探测（失败，见上文说明）';
-        const detail = (r.message || '') + tcpLine + '\n\n' + state + '\n请用左侧开关自行调整启用/禁用。';
-        showResultModal('「' + (r.name || '') + '」 ' + head, detail);
-    } catch (e) { toast(e.message, 'error'); }
-}
+    store.refreshAll = async function () {
+        try {
+            toast('正在刷新所有订阅...');
+            await api('/api/subscriptions/refresh-all', { method: 'POST' });
+            toast('全部刷新完成');
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); }
+    };
 
-/** 批量：仅检测已勾选的订阅；不可用且原为启用的订阅会自动禁用 */
-async function batchCheckSubs() {
-    const ids = getSelectedSubIds();
-    if (!ids.length) { toast('请先勾选要检测的订阅', 'error'); return; }
-    if (!confirm('将对选中的 ' + ids.length + ' 条订阅逐一检测。\n不可用且当前为「启用」的订阅将被自动禁用。\n确定继续？')) return;
-    try {
-        toast('正在批量检测，请稍候…');
-        const r = await api('/api/subscriptions/batch-check', { method: 'POST', body: JSON.stringify({ ids }) });
-        const n = r.auto_disabled || 0;
-        toast('检测完成：共 ' + (r.checked || 0) + ' 条，已自动禁用 ' + n + ' 条');
-        if (n > 0 && r.disabled_names && r.disabled_names.length)
-            alert('已自动禁用的订阅：\n' + r.disabled_names.join('\n'));
-        await loadSubs();
-        schedulePreviewRefresh();
-    } catch (e) { toast(e.message, 'error'); }
-}
+    store.refresh = async function (id) {
+        try {
+            await api('/api/subscriptions/' + id + '/refresh', { method: 'POST' });
+            toast('刷新成功');
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); }
+    };
 
-async function toggleSubEnabled(id, enabled) {
-    try {
-        await api('/api/subscriptions/' + id, { method: 'PUT', body: JSON.stringify({ enabled }) });
-        toast(enabled ? '已启用' : '已禁用');
-        await loadSubs();
-        schedulePreviewRefresh();
-    } catch (e) {
-        toast(e.message, 'error');
-        await loadSubs();
-    }
-}
-
-// ---- 无状态节点查看与测速 ----
-let _currentSubNodes = []; // 暂存当前正在查看的订阅节点列表
-
-async function showSubNodesModal(id) {
-    const sub = _subsCache.find(x => x.id === id);
-    if (!sub) { toast('未找到该订阅', 'error'); return; }
-    
-    // 显示加载中弹窗
-    const loadingHtml = `<div class="modal-bg" id="subNodesModal" onclick="if(event.target===this)this.remove()">
-    <div class="card w-full max-w-4xl max-h-[90vh] flex flex-col">
-      <h3 class="text-lg font-bold mb-3 border-b border-slate-700/50 pb-2 flex flex-wrap items-center justify-between gap-2">
-        <span>「${esc(sub.name)}」节点明细</span>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('subNodesModal').remove()">关闭</button>
-      </h3>
-      <div class="flex-1 overflow-y-auto p-8 text-center text-slate-400" id="subNodesContainer">
-        正在实时拉取并解析节点配置，请稍候...
-      </div>
-    </div>
-  </div>`;
-    document.body.insertAdjacentHTML('beforeend', loadingHtml);
-    
-    try {
-        const r = await api('/api/subscriptions/' + id + '/nodes');
-        const nodes = r.nodes || [];
-        _currentSubNodes = nodes;
-        
-        const container = document.getElementById('subNodesContainer');
-        if (!container) return; // 弹窗已被关闭
-        
-        if (nodes.length === 0) {
-            container.innerHTML = '<div class="py-8">未解析到任何有效节点</div>';
-            return;
-        }
-        
-        container.className = "flex-1 overflow-y-auto";
-        container.innerHTML = `
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
-                <span class="text-sm text-slate-400">共解析到 ${nodes.length} 个节点（关闭弹窗后状态将不被保留）</span>
-                <button type="button" class="btn btn-outline-accent btn-sm" onclick="batchCheckSubNodes()">批量测速</button>
-            </div>
-            <div class="border border-slate-700/50 rounded-lg overflow-hidden">
-                ${nodes.map((n, i) => `
-                <div class="flex flex-wrap items-center gap-2 sm:gap-3 p-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 transition-colors">
-                    <span class="text-xs text-slate-500 w-6 text-right">${i + 1}</span>
-                    <span class="font-medium min-w-0 flex-1 basis-[12rem] truncate md:max-w-md" title="${esc(n.name)}">${esc(n.name)}</span>
-                    <span class="tag bg-slate-600/50 text-xs shrink-0">${esc(n.type)}</span>
-                    <span id="sub-node-status-${i}" class="inline-flex items-center gap-1 text-xs text-slate-400 sm:ml-auto" title="未检测">
-                       <span class="w-2 h-2 rounded-full bg-slate-500"></span>
-                       <span class="latency-text">-</span>
-                    </span>
-                    <button type="button" class="btn btn-outline-accent btn-sm ml-2" onclick="checkSubNode(${i})">测速</button>
-                </div>
-                `).join('')}
-            </div>
-        `;
-    } catch (e) {
-        const container = document.getElementById('subNodesContainer');
-        if (container) container.innerHTML = `<div class="py-8 text-red-400">加载失败: ${esc(e.message)}</div>`;
-        toast(e.message, 'error');
-    }
-}
-
-async function checkSubNode(idx, showAlert = false) {
-    const node = _currentSubNodes[idx];
-    if (!node) return;
-    
-    const statusEl = document.getElementById('sub-node-status-' + idx);
-    if (statusEl) {
-        statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span><span class="latency-text">测速中...</span>`;
-    }
-    
-    try {
-        if (showAlert) toast('正在测速…');
-        const r = await api('/api/proxies/check', { 
-            method: 'POST', 
-            body: JSON.stringify({ proxy_yaml: node.proxy_yaml }) 
-        });
-        
-        if (statusEl) {
-            if (r.available) {
-                const ms = r.latency_ms != null ? Math.round(r.latency_ms) : 0;
-                statusEl.innerHTML = renderLatencyBar(r.latency_ms, true);
-            } else {
-                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500" title="${esc(r.error || '失败')}"></span><span class="latency-text text-red-500 cursor-help" title="${esc(r.error || '失败')}">失败</span>`;
-            }
-        }
-        
-        if (showAlert) {
-            const head = r.available ? '可用' : '不可用';
+    store.check = async function (id) {
+        try {
+            toast('正在检测…');
+            const r = await api('/api/subscriptions/' + id + '/check', { method: 'POST', body: '{}' });
+            const state = r.enabled ? '当前：启用' : '当前：禁用';
+            const head = r.available ? '检测通过（可用）' : '检测未通过（不可用）';
             let tcpLine = '';
             const pk = r.probe_kind || '';
             if (r.latency_ms != null)
                 tcpLine = '\n延迟（' + (pk === 'httpx' ? '经代理 URL' : pk === 'mihomo' ? 'Mihomo URL' : pk === 'tcp-fallback' ? 'TCP 兜底' : '探测') + '）: ' + Math.round(r.latency_ms) + ' ms';
             else if (r.tcp_tested && !r.available)
                 tcpLine = '\n已尝试探测（失败，见上文说明）';
-            const detail = (r.message || '') + tcpLine;
-            showResultModal('「' + (node.name || '') + '」 ' + head, detail);
-        }
-        return r;
-    } catch (e) { 
-        if (statusEl) {
-            statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500" title="${esc(e.message)}"></span><span class="latency-text text-red-500 cursor-help" title="${esc(e.message)}">错误</span>`;
-        }
-        if (showAlert) toast(e.message, 'error'); 
-        throw e;
-    }
-}
-
-async function batchCheckSubNodes() {
-    if (!_currentSubNodes.length) return;
-    
-    toast(`开始批量测速 ${_currentSubNodes.length} 个节点...`);
-    const concurrency = 10;
-    let i = 0;
-    
-    const executeNext = async () => {
-        if (i >= _currentSubNodes.length) return;
-        const currentIdx = i++;
-        try {
-            await checkSubNode(currentIdx, false);
-        } catch (e) {
-            console.error('Check failed for sub node', currentIdx, e);
-        }
-        await executeNext();
+            const detail = (r.message || '') + tcpLine + '\n\n' + state + '\n请用左侧开关自行调整启用/禁用。';
+            showResultModal('「' + (r.name || '') + '」 ' + head, detail);
+        } catch (e) { toast(e.message, 'error'); }
     };
 
-    const workers = [];
-    for (let w = 0; w < concurrency; w++) {
-        workers.push(executeNext());
-    }
-    
-    await Promise.all(workers);
-    toast(`本页节点测速完成`);
-}
+    store.save = async function (form) {
+        const data = {
+            name: form.name,
+            url: form.url,
+            prefix: form.prefix,
+            enabled: form.enabled,
+            auto_disable: form.auto_disable,
+        };
+        if (!data.name || !data.url) { toast('名称和URL不能为空', 'error'); return; }
+        try {
+            if (form.id) {
+                await api('/api/subscriptions/' + form.id, { method: 'PUT', body: JSON.stringify(data) });
+            } else {
+                await api('/api/subscriptions', { method: 'POST', body: JSON.stringify(data) });
+            }
+            toast(form.id ? '已更新' : '已添加');
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); throw e; }
+    };
 
-const TPL_YAML_STUB = `mixed-port: 7890
-mode: rule
-proxies: []
-proxy-groups:
-  - name: "🚀 节点选择"
-    type: select
-    proxies: ["⚡ 自动选择", DIRECT, REJECT]
-  - name: "⚡ 自动选择"
-    type: url-test
-    proxies: []
-    url: "https://www.gstatic.com/generate_204"
-    interval: 300
-rule-providers: {}
-rules:
-  - MATCH,🚀 节点选择
-`;
+    store.deleteItem = async function (id) {
+        if (!confirm('确定删除？')) return;
+        try {
+            await api('/api/subscriptions/' + id, { method: 'DELETE' });
+            toast('已删除');
+            await this.load();
+            Alpine.store('config').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); }
+    };
 
+    /* ── 节点明细 ── */
+    store.currentNodes = [];
+    store.nodesLoading = false;
+
+    store.loadNodes = async function (subId) {
+        this.currentNodes = [];
+        this.nodesLoading = true;
+        try {
+            const r = await api('/api/subscriptions/' + subId + '/nodes');
+            this.currentNodes = (r.nodes || []).map(n => ({
+                ...n,
+                _checking: false,
+                _available: null,
+                _latencyMs: null,
+            }));
+        } catch (e) {
+            toast(e.message, 'error');
+        } finally {
+            this.nodesLoading = false;
+        }
+    };
+
+    store.checkNode = async function (idx) {
+        const node = this.currentNodes[idx];
+        if (!node) return;
+        node._checking = true;
+        node._available = null;
+        try {
+            const r = await api('/api/proxies/check', {
+                method: 'POST',
+                body: JSON.stringify({ proxy_yaml: node.proxy_yaml }),
+            });
+            node._available = r.available;
+            node._latencyMs = r.latency_ms ?? null;
+        } catch (e) {
+            node._available = false;
+        } finally {
+            node._checking = false;
+        }
+    };
+
+    store.batchCheckNodes = async function () {
+        if (!this.currentNodes.length) return;
+        toast('开始批量测速 ' + this.currentNodes.length + ' 个节点...');
+        const concurrency = 10;
+        let i = 0;
+        const next = async () => {
+            if (i >= this.currentNodes.length) return;
+            const idx = i++;
+            try { await this.checkNode(idx); } catch (_) {}
+            await next();
+        };
+        await Promise.all(Array.from({ length: concurrency }, next));
+        toast('本页节点测速完成');
+    };
+});

@@ -1,25 +1,35 @@
-{# 侧栏导航：switchPage 切换各 #page-* #}
-                <div class="nav-backdrop lg:hidden" onclick="closeMobileNav()" aria-hidden="true"></div>
+{# 侧栏导航 — Alpine router store 驱动 #}
+                <div class="nav-backdrop lg:hidden" @click="closeMobileNav()" aria-hidden="true"></div>
                 <nav
                     id="mainNav"
                     class="layout-nav w-full lg:w-52 lg:border-r lg:border-slate-700 p-2 lg:p-4 lg:min-h-[calc(100vh-52px)] flex flex-col gap-1">
-                    <div class="nav-item active" data-page="home" onclick="switchPage('home',this)">
+                    <div class="nav-item" data-page="home"
+                        :class="$store.router.current === 'home' ? 'active' : ''"
+                        @click="$store.router.go('home')">
                         <i data-lucide="home" class="w-5 h-5 shrink-0"></i>
                         概览
                     </div>
-                    <div class="nav-item" data-page="subs" onclick="switchPage('subs',this)">
+                    <div class="nav-item" data-page="subs"
+                        :class="$store.router.current === 'subs' ? 'active' : ''"
+                        @click="$store.router.go('subs')">
                         <i data-lucide="rss" class="w-5 h-5 shrink-0"></i>
                         订阅管理
                     </div>
-                    <div class="nav-item" data-page="imports" onclick="switchPage('imports',this)">
+                    <div class="nav-item" data-page="imports"
+                        :class="$store.router.current === 'imports' ? 'active' : ''"
+                        @click="$store.router.go('imports')">
                         <i data-lucide="server" class="w-5 h-5 shrink-0"></i>
                         节点管理
                     </div>
-                    <div class="nav-item" data-page="config" onclick="switchPage('config',this)">
+                    <div class="nav-item" data-page="config"
+                        :class="$store.router.current === 'config' ? 'active' : ''"
+                        @click="$store.router.go('config')">
                         <i data-lucide="settings" class="w-5 h-5 shrink-0"></i>
                         配置
                     </div>
-                    <div class="nav-item" data-page="logs" onclick="switchPage('logs',this)">
+                    <div class="nav-item" data-page="logs"
+                        :class="$store.router.current === 'logs' ? 'active' : ''"
+                        @click="$store.router.go('logs')">
                         <i data-lucide="scroll-text" class="w-5 h-5 shrink-0"></i>
                         访问日志
                     </div>
