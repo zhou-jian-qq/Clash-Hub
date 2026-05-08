@@ -30,7 +30,7 @@ async def init_db():
     """确保数据目录存在并创建 ORM 表（幂等）。"""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     async with engine.begin() as conn:
-        from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode
+        from models import Subscription, Setting, CustomTemplate, ImportBatch, ImportedNode, ProbeHistory, SubAccessLog, AuditLog, SubProfile  # noqa: F401
         try:
             await conn.run_sync(Base.metadata.create_all)
         except Exception as e:

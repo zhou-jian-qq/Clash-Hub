@@ -59,10 +59,7 @@ async function loadImportBatches() {
                 </span>`;
                 if (n.last_check_at) {
                     if (n.last_latency_ms != null && n.last_latency_ms >= 0) {
-                        statusHtml = `<span id="node-status-${n.id}" class="inline-flex items-center gap-1 text-xs ml-2">
-                           <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                           <span class="latency-text text-green-500">${n.last_latency_ms} ms</span>
-                        </span>`;
+                        statusHtml = `<span id="node-status-${n.id}" class="inline-flex items-center gap-1 text-xs ml-2">${renderLatencyBar(n.last_latency_ms, true)}</span>`;
                     } else {
                         statusHtml = `<span id="node-status-${n.id}" class="inline-flex items-center gap-1 text-xs ml-2">
                            <span class="w-2 h-2 rounded-full bg-red-500"></span>
@@ -246,8 +243,7 @@ async function checkImportNode(id, showAlert = false) {
         
         if (statusEl) {
             if (r.available) {
-                const ms = r.latency_ms != null ? Math.round(r.latency_ms) : 0;
-                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="latency-text text-green-500">${ms} ms</span>`;
+                statusEl.innerHTML = renderLatencyBar(r.latency_ms, true);
             } else {
                 statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="latency-text text-red-500">失败</span>`;
             }

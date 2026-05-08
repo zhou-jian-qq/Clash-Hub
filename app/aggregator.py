@@ -39,6 +39,54 @@ SUPPORTED_TYPES = {"ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteri
                    "tuic", "wireguard", "snell", "socks5", "http"}
 
 
+def _proxy_fingerprint(p: dict, aggressive: bool = False) -> tuple:
+    """计算节点唯一指纹；aggressive=True 时忽略名称差异。"""
+    ptype = str(p.get("type", "")).lower()
+    server = str(p.get("server", "")).lower()
+    port = str(p.get("port", ""))
+    # 根据协议取认证凭据字段
+    if ptype in ("ss", "ssr"):
+        secret = str(p.get("password", ""))
+    elif ptype in ("vmess", "vless"):
+        secret = str(p.get("uuid", ""))
+    elif ptype in ("trojan", "hysteria", "hysteria2"):
+        secret = str(p.get("password", ""))
+    else:
+        secret = str(p.get("password", p.get("uuid", "")))
+    base = (ptype, server, port, secret)
+    if not aggressive:
+        return base + (str(p.get("name", "")),)
+    return base
+
+
+def dedupe_proxies(
+    proxies: list[dict],
+    aggressive: bool = False,
+) -> tuple[list[dict], list[tuple[dict, dict]]]:
+    """去重节点列表。
+
+    Args:
+        proxies: 原始节点列表
+        aggressive: True 时忽略名称差异（相同服务器+端口+密钥视为重复）
+
+    Returns:
+        (去重后列表, [(保留项, 被去除的重复项)] 对列表)
+    """
+    seen: dict[tuple, dict] = {}
+    deduped: list[dict] = []
+    duplicates: list[tuple[dict, dict]] = []
+
+    for p in proxies:
+        fp = _proxy_fingerprint(p, aggressive)
+        if fp in seen:
+            duplicates.append((seen[fp], p))
+        else:
+            seen[fp] = p
+            deduped.append(p)
+
+    return deduped, duplicates
+
+
 # ─── 解析 subscription-userinfo ───
 def parse_userinfo(header: str) -> dict:
     """解析 HTTP 响应头 `subscription-userinfo`（分号分隔的 key=value）。

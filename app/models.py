@@ -40,6 +40,7 @@ class Subscription(Base):
     used: Mapped[int] = mapped_column(BigInteger, default=0)
     expire: Mapped[int] = mapped_column(BigInteger, default=0)
     node_count: Mapped[int] = mapped_column(Integer, default=0)
+    tags: Mapped[str] = mapped_column(String(200), default="")  # CSV 标签，Phase 3.4
     last_sync: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now, onupdate=_utc_now)
@@ -56,6 +57,7 @@ class Subscription(Base):
             "used": self.used,
             "expire": self.expire,
             "node_count": self.node_count,
+            "tags": self.tags or "",
             "last_sync": _iso_utc_api(self.last_sync),
             "created_at": _iso_utc_api(self.created_at),
             "updated_at": _iso_utc_api(self.updated_at),
@@ -142,6 +144,77 @@ class CustomTemplate(Base):
         return {
             "id": self.id,
             "name": self.name,
+            "created_at": _iso_utc_api(self.created_at),
+        }
+
+
+class ProbeHistory(Base):
+    """节点/订阅可用性探测历史记录（保留 30 天）。"""
+
+    __tablename__ = "probe_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    target_kind: Mapped[str] = mapped_column(String(10))  # 'sub' | 'node'
+    target_id: Mapped[int] = mapped_column(Integer)
+    latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=False)
+    checked_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "target_kind": self.target_kind,
+            "target_id": self.target_id,
+            "latency_ms": self.latency_ms,
+            "ok": self.ok,
+            "checked_at": _iso_utc_api(self.checked_at),
+        }
+
+
+class AuditLog(Base):
+    """管理操作审计日志（POST/PUT/DELETE /api/*）。"""
+
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    action: Mapped[str] = mapped_column(String(20))   # POST / PUT / DELETE
+    path: Mapped[str] = mapped_column(Text)
+    payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "action": self.action,
+            "path": self.path,
+            "payload_json": self.payload_json,
+            "ip": self.ip,
+            "created_at": _iso_utc_api(self.created_at),
+        }
+
+
+class SubProfile(Base):
+    """多套订阅方案：每个方案有独立 UUID、模板、标签过滤器。"""
+
+    __tablename__ = "sub_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    template_name: Mapped[str] = mapped_column(String(100), default="标准版")
+    tag_filter: Mapped[str] = mapped_column(String(200), default="")  # CSV 标签
+    custom_template_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "uuid": self.uuid,
+            "template_name": self.template_name,
+            "tag_filter": self.tag_filter,
+            "custom_template_id": self.custom_template_id,
             "created_at": _iso_utc_api(self.created_at),
         }
 

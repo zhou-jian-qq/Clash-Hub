@@ -8,3 +8,6 @@ pyyaml
 python-jose[cryptography]
 passlib[bcrypt]
 apscheduler
+pytest
+pytest-asyncio
+qrcode[pil]

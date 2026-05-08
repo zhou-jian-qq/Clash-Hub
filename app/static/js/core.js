@@ -171,3 +171,39 @@ async function doLogout() {
         window.location.href = '/login';
     } catch (e) { toast(e.message, 'error'); }
 }
+
+/**
+ * Phase 4.3：延迟颜色条可视化
+ * @param {number|null} ms - 延迟毫秒数（null 表示未知或失败）
+ * @param {boolean} [compact=false] - compact 模式仅返回彩色小圆点 + 数字
+ * @returns {string} HTML 片段
+ */
+function renderLatencyBar(ms, compact = false) {
+    if (ms == null || ms < 0) {
+        return compact
+            ? '<span class="inline-flex items-center gap-1 text-xs text-[var(--muted)]"><span class="w-2 h-2 rounded-full bg-slate-500"></span>-</span>'
+            : '<div class="latency-bar-wrap"><div class="latency-bar bg-slate-600" style="width:0%"></div><span class="latency-label text-[var(--muted)]">-</span></div>';
+    }
+    const rounded = Math.round(ms);
+    let colorClass, barWidth;
+    if (rounded <= 200) {
+        colorClass = 'bg-green-500';
+        barWidth = Math.min(100, (rounded / 200) * 40 + 10);
+    } else if (rounded <= 500) {
+        colorClass = 'bg-yellow-400';
+        barWidth = Math.min(100, 40 + ((rounded - 200) / 300) * 30);
+    } else {
+        colorClass = 'bg-red-500';
+        barWidth = Math.min(100, 70 + Math.min(30, ((rounded - 500) / 500) * 30));
+    }
+    const label = `${rounded} ms`;
+    if (compact) {
+        return `<span class="inline-flex items-center gap-1 text-xs"><span class="w-2 h-2 rounded-full ${colorClass}"></span><span class="${colorClass.replace('bg-', 'text-')}">${label}</span></span>`;
+    }
+    return `<div class="latency-bar-wrap flex items-center gap-2" title="${label}">
+  <div class="latency-bar-track flex-1 h-1.5 rounded-full bg-slate-700 overflow-hidden" style="max-width:80px">
+    <div class="h-full rounded-full ${colorClass} transition-all" style="width:${barWidth}%"></div>
+  </div>
+  <span class="latency-label text-xs ${colorClass.replace('bg-', 'text-')} font-mono tabular-nums">${label}</span>
+</div>`;
+}

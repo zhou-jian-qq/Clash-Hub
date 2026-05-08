@@ -33,6 +33,62 @@ _TYPES_MIHOMO_CORE = frozenset(
 )
 
 
+async def check_mihomo_executable(path: str) -> dict:
+    """检测 Mihomo 可执行文件的可用性与版本。
+
+    返回:
+        {
+            "available": bool,
+            "path": str | None,
+            "version": str | None,
+            "error": str | None
+        }
+    """
+    resolved = resolve_mihomo_executable(path)
+    if not resolved:
+        return {
+            "available": False,
+            "path": None,
+            "version": None,
+            "error": "未找到 Mihomo 可执行文件（已检查配置路径、环境变量和 PATH）",
+        }
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            resolved, "-v",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+        output = (stdout or stderr or b"").decode("utf-8", errors="replace").strip()
+        version = None
+        for line in output.splitlines():
+            line = line.strip()
+            if line:
+                version = line
+                break
+        return {
+            "available": True,
+            "path": resolved,
+            "version": version,
+            "error": None,
+        }
+    except asyncio.TimeoutError:
+        return {
+            "available": False,
+            "path": resolved,
+            "version": None,
+            "error": "版本检测超时（5s）",
+        }
+    except Exception as e:
+        return {
+            "available": False,
+            "path": resolved,
+            "version": None,
+            "error": str(e),
+        }
+
+
 def resolve_mihomo_executable(path: str) -> str | None:
     """解析 Mihomo 可执行路径：去 BOM/引号、展开环境变量与用户目录；空则查 PATH 与 CLASH_HUB_MIHOMO。"""
     raw = (path or "").strip()

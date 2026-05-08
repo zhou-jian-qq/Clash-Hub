@@ -1,8 +1,16 @@
 {# Clash Hub — 单页骨架：head、静态 CSS/JS 加载顺序；正文由子模板或 index 的 block 填充 #}
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN">
 
 <head>
+    <!-- Phase 4.1：防闪烁预读脚本 — 必须在所有样式表之前执行 -->
+    <script>
+        (function() {
+            var saved = localStorage.getItem('ch_theme');
+            var theme = saved === 'light' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1e293b">

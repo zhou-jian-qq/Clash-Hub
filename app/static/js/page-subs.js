@@ -288,7 +288,7 @@ async function checkSubNode(idx, showAlert = false) {
         if (statusEl) {
             if (r.available) {
                 const ms = r.latency_ms != null ? Math.round(r.latency_ms) : 0;
-                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="latency-text text-green-500">${ms} ms</span>`;
+                statusEl.innerHTML = renderLatencyBar(r.latency_ms, true);
             } else {
                 statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500" title="${esc(r.error || '失败')}"></span><span class="latency-text text-red-500 cursor-help" title="${esc(r.error || '失败')}">失败</span>`;
             }
