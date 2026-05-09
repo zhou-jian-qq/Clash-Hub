@@ -169,6 +169,23 @@ class TestProxyDictToUri:
         assert uri is not None
         assert uri.startswith("hysteria2://")
 
+    def test_vless_reality_roundtrip_keeps_reality_params(self):
+        src = (
+            "vless://11111111-2222-3333-4444-555555555555@example.com:443"
+            "?encryption=none&flow=xtls-rprx-vision&security=reality"
+            "&sni=www.example.com&fp=chrome"
+            "&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            "&sid=abcd1234&type=tcp&headerType=none#vless-reality-test"
+        )
+        parsed = parse_single_proxy_uri(src)
+        assert parsed is not None
+        out = proxy_dict_to_uri(parsed)
+        assert out is not None
+        assert "security=reality" in out
+        assert "pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" in out
+        assert "sid=abcd1234" in out
+        assert "flow=xtls-rprx-vision" in out
+
     def test_unsupported_type_returns_none(self):
         p = {"name": "test", "type": "wireguard", "server": "1.2.3.4", "port": 51820}
         uri = proxy_dict_to_uri(p)
