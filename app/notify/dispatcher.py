@@ -55,19 +55,31 @@ async def build_notifiers_from_settings() -> list[Notifier]:
         if url:
             notifiers.append(WeComNotifier(url))
 
-    if "bark" in channels:
-        from notify.bark import BarkNotifier
-        async with async_session() as session:
+    # Bark：任一非空 device key（notify_bark_key 或历史 bark_url 字段）即可发，不依赖 notify_channels
+    from notify.bark import BarkNotifier
+    from deps import parse_bark_url
 
-            async def _bg(k: str, d: str = "") -> str:
-                r = await session.get(Setting, k)
-                return r.value if r and r.value else d
-
-            device_key = await _bg("notify_bark_key")
-            server_url = await _bg("notify_bark_server", "https://api.day.app")
-            group = await _bg("notify_bark_group", "Clash Hub")
-        if device_key:
-            notifiers.append(BarkNotifier(device_key, server_url, group))
+    async with async_session() as session:
+        rk = await session.get(Setting, "notify_bark_key")
+        rs = await session.get(Setting, "notify_bark_server")
+        rg = await session.get(Setting, "notify_bark_group")
+        ru = await session.get(Setting, "bark_url")
+        device_key = (rk.value or "").strip() if rk and rk.value else ""
+        server_url = (rs.value or "").strip() if rs and rs.value else ""
+        group = (
+            rg.value.strip()
+            if rg and rg.value and str(rg.value).strip()
+            else "Clash Hub"
+        )
+        legacy_url = (ru.value or "").strip() if ru and ru.value else ""
+    if not device_key and legacy_url:
+        dk, srv_parsed = parse_bark_url(legacy_url)
+        device_key = dk
+        if srv_parsed:
+            server_url = srv_parsed
+    server_url = (server_url or "https://api.day.app").rstrip("/")
+    if device_key:
+        notifiers.append(BarkNotifier(device_key, server_url, group))
 
     return notifiers
 

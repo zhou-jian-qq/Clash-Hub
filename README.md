@@ -22,7 +22,7 @@ Clash 订阅聚合管理工具 —— 多源合一、智能重命名、流量监
 - **安全与多客户端支持**：
   - 提供深/浅色主题的现代化 Web 响应式后台，密码鉴权保护。
   - 聚合链接通过动态 UUID 路由保护，随时支持一键「重置密钥」轮换 UUID 防止泄露。
-  - 首页提供多种客户端快捷导入入口（Clash / Clash Meta / Shadowrocket / v2rayN / V2rayNG 等）。
+  - 概览页提供多种客户端快捷导入入口（Clash / Clash Meta / Shadowrocket / v2rayN / V2rayNG 等），其中 V2Ray 系为 Base64 订阅链接复制。
 
 ---
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aggregator import build_config
 from auth import require_admin
 from database import get_db
-from deps import apply_settings_body, get_setting, set_setting
+from deps import apply_settings_body, build_bark_url_for_frontend, get_setting, set_setting
 from models import CustomTemplate, Setting
 from preset_templates import PRESETS, get_preset_names
 from proxy_latency import check_mihomo_executable
@@ -65,7 +65,12 @@ async def system_health(db: AsyncSession = Depends(get_db), _=Depends(require_ad
 @router.get("/api/settings")
 async def get_settings(db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     result = await db.execute(select(Setting))
-    return {s.key: s.value for s in result.scalars().all()}
+    out = {s.key: s.value for s in result.scalars().all()}
+    out["bark_url"] = build_bark_url_for_frontend(
+        out.get("notify_bark_key") or "",
+        out.get("notify_bark_server") or "",
+    )
+    return out
 
 
 @router.put("/api/settings")

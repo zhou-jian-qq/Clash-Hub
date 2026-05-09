@@ -1,6 +1,7 @@
 """公共依赖：Setting 读写、辅助函数（供各路由模块共享）。"""
 
 import yaml
+from urllib.parse import urljoin, urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Setting
@@ -47,9 +48,84 @@ def parse_yaml_mapping_or_empty(key: str, text: str) -> dict:
     return data
 
 
+def parse_bark_url(url: str) -> tuple[str, str]:
+    """
+    从前端填入的 Bark 地址解析出 device_key 与服务器根 URL。
+    常见形式：https://api.day.app/YourDeviceKey 或自建 https://example.com/longKey
+    返回：(device_key, server_base)，无效则 ("", "").
+    """
+    raw = (url or "").strip()
+    if not raw:
+        return "", ""
+    if not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw
+    parsed = urlparse(raw)
+    if not parsed.netloc:
+        return "", ""
+    scheme = parsed.scheme if parsed.scheme in ("http", "https") else "https"
+    base = f"{scheme}://{parsed.netloc}".rstrip("/")
+    path = (parsed.path or "").strip("/")
+    if not path:
+        return "", base
+    parts = [p for p in path.split("/") if p]
+    if not parts:
+        return "", base
+    noise = {"push", "notifications", "notification"}
+    candidates = [p for p in parts if p.lower() not in noise]
+    if not candidates:
+        return "", base
+    key = candidates[-1].strip()
+    if not key:
+        return "", base
+    return key, base
+
+
+def build_bark_url_for_frontend(device_key: str, server_raw: str) -> str:
+    """供 GET /api/settings 返回 bark_url（与占位输入框同源）。"""
+    k = (device_key or "").strip()
+    if not k:
+        return ""
+    base = ((server_raw or "").strip()).rstrip("/") or "https://api.day.app"
+    return urljoin(base + "/", k)
+
+
+def merge_notify_channels_csv(csv: str, channel: str, enabled: bool) -> str:
+    """在逗号分隔的 notify_channels 中启用或移除某渠道，保留原有顺序。"""
+    parts = [p.strip() for p in (csv or "").split(",") if p.strip()]
+    out = []
+    for p in parts:
+        if p == channel:
+            if enabled:
+                out.append(p)
+            # enabled False：跳过即移除
+        else:
+            out.append(p)
+    if enabled and channel not in out:
+        out.append(channel)
+    return ",".join(out)
+
+
+async def sync_bark_url_field(db: AsyncSession, bark_url_front: str) -> None:
+    """
+    将设置页传来的 bark_url 同步为 notify_bark_key / notify_bark_server，
+    并更新 notify_channels；清空遗留的 bark_url 键以免与调度逻辑不一致。
+    """
+    raw = bark_url_front if bark_url_front is None else str(bark_url_front).strip()
+    key, srv = parse_bark_url(raw)
+    await set_setting(db, "notify_bark_key", key)
+    if srv:
+        await set_setting(db, "notify_bark_server", srv)
+    merged = merge_notify_channels_csv(await get_setting(db, "notify_channels", ""), "bark", bool(key))
+    await set_setting(db, "notify_channels", merged)
+    await set_setting(db, "bark_url", "")  # 前端占位键不写库
+
+
 async def apply_settings_body(db: AsyncSession, body: dict) -> bool:
     """根据请求体写入 settings。返回是否包含 refresh_interval_hours（需重载定时任务）。"""
     touch_refresh = "refresh_interval_hours" in body
+    body = dict(body)
+    if "bark_url" in body:
+        await sync_bark_url_field(db, body.pop("bark_url"))
     yaml_override_keys = {
         "module_base_override_yaml",
         "module_tun_override_yaml",

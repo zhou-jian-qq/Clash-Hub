@@ -201,6 +201,7 @@ document.addEventListener('alpine:init', () => {
         async load() {},
         async resetUuid() {},
         async loadHealth() {},
+        setSubTab(_tab) {},
     });
 
     /* ─── logs store ──────────────────────────────────────────────── */

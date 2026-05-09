@@ -9,6 +9,13 @@ const SUB_CLIENT_NAME = 'clash_hub';
 document.addEventListener('alpine:init', () => {
     const store = Alpine.store('home');
 
+    function _refreshLucide() {
+        if (typeof lucide === 'undefined') return;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => { lucide.createIcons(); });
+        });
+    }
+
     function _buildSubUrl(uuid) {
         return location.origin + '/sub/' + uuid + '?name=' + encodeURIComponent(SUB_CLIENT_NAME);
     }
@@ -38,7 +45,7 @@ document.addEventListener('alpine:init', () => {
             this.traffic = t;
             this.subBaseUrl = _buildSubUrl(s.sub_uuid);
             this.subV2rayUrl = _buildV2rayUrl(s.sub_uuid);
-            setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 0);
+            _refreshLucide();
         } catch (e) { toast(e.message, 'error'); }
 
         /* 健康检查（非阻塞）*/
@@ -51,6 +58,13 @@ document.addEventListener('alpine:init', () => {
         } catch (_) {
             this.health = null;
         }
+        _refreshLucide();
+    };
+
+    /** 概览「订阅链接」子 Tab：切换后 Alpine x-if 会插入新 DOM，需重建 Lucide */
+    store.setSubTab = function (tab) {
+        this.activeTab = tab;
+        _refreshLucide();
     };
 
     store.resetUuid = async function () {
@@ -60,6 +74,7 @@ document.addEventListener('alpine:init', () => {
             this.subBaseUrl = _buildSubUrl(d.sub_uuid);
             this.subV2rayUrl = _buildV2rayUrl(d.sub_uuid);
             toast('已重置密钥');
+            _refreshLucide();
         } catch (e) { toast(e.message, 'error'); }
     };
 

@@ -140,21 +140,21 @@
             订阅链接获取
         </div>
         <div class="card">
-            <p class="text-sm text-slate-400 mb-4">按设备选择导入方式；泄露后可重置密钥使旧链接失效。</p>
+            <p class="text-sm text-slate-400 mb-4">按设备选择导入方式；泄露后可重置密钥使旧链接失效。V2Ray 系客户端请使用 Base64 订阅地址，与上方 Clash 通用链接不同。</p>
             <div class="flex flex-wrap gap-1 border-b mb-4" style="border-color:var(--border)" id="homeSubTabs">
                 <button type="button" class="home-tab" :class="store.activeTab==='ios' && 'active'"
-                    @click="store.activeTab='ios'">苹果手机</button>
+                    @click="store.setSubTab && store.setSubTab('ios')">苹果手机</button>
                 <button type="button" class="home-tab" :class="store.activeTab==='android' && 'active'"
-                    @click="store.activeTab='android'">安卓手机</button>
+                    @click="store.setSubTab && store.setSubTab('android')">安卓手机</button>
                 <button type="button" class="home-tab" :class="store.activeTab==='desktop' && 'active'"
-                    @click="store.activeTab='desktop'">桌面系统</button>
+                    @click="store.setSubTab && store.setSubTab('desktop')">桌面系统</button>
             </div>
 
             <!-- iOS -->
             <template x-if="store.activeTab==='ios'">
                 <div id="homeSubPanelIos">
                     <div class="client-row">
-                        <img src="https://fastly.jsdelivr.net/npm/@lobehub/icons-static-png@1/light/stash.png" alt="" width="36" height="36" class="rounded-xl flex-shrink-0" onerror="this.style.display='none'">
+                        <div class="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-sm font-bold" style="background:rgba(249,115,22,.18);color:#fb923c">ST</div>
                         <div class="flex-1 min-w-0">
                             <div class="font-medium text-sm">Stash</div>
                             <div class="text-xs text-slate-400">推荐，Clash Meta 内核</div>
@@ -194,6 +194,16 @@
                             <button type="button" class="btn btn-ghost btn-sm" @click="copyText(store.subBaseUrl,'已复制')">复制链接</button>
                         </div>
                     </div>
+                    <div class="client-row">
+                        <div class="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-[10px] font-bold leading-tight text-center px-0.5" style="background:rgba(59,130,246,.15);color:#3b82f6">NG</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-sm">V2rayNG</div>
+                            <div class="text-xs text-slate-400">V2Ray 订阅（Base64），在应用内从 URL 添加</div>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-primary btn-sm" @click="store.copyV2raySub && store.copyV2raySub()">复制订阅链接</button>
+                        </div>
+                    </div>
                 </div>
             </template>
 
@@ -211,6 +221,16 @@
                         <div class="flex gap-2 flex-wrap">
                             <button type="button" class="btn btn-primary btn-sm" @click="store.openImportClashMeta && store.openImportClashMeta()">一键导入</button>
                             <button type="button" class="btn btn-ghost btn-sm" @click="copyText(store.subBaseUrl,'已复制')">复制链接</button>
+                        </div>
+                    </div>
+                    <div class="client-row">
+                        <div class="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-xs font-bold" style="background:rgba(99,102,241,.15);color:#6366f1">vN</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-sm">v2rayN</div>
+                            <div class="text-xs text-slate-400">V2Ray 订阅（Base64），订阅设置中填入 URL</div>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-primary btn-sm" @click="store.copyV2raySub && store.copyV2raySub()">复制订阅链接</button>
                         </div>
                     </div>
                 </div>
