@@ -3,26 +3,74 @@
  * 依赖 theme.css 变量；与 Tailwind 混用。
  */
 
-/* --- 按钮 --- */
+/* --- 按钮 ---
+ * Tailwind CDN preflight 将 svg 设为 display:block；button 若为普通流排版会导致图标叠在文字上方。
+ * 使用 inline-flex + gap 保证图标与标签同一行居中；少用 transform 避免暗色背景下文字边缘发虚。
+ */
 .btn {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: .375rem;
     padding: .5rem 1rem;
     border-radius: .6rem;
     font-weight: 500;
     cursor: pointer;
-    transition: transform .15s ease, box-shadow .15s ease, background .15s, opacity .15s;
+    transition: box-shadow .15s ease, background .15s, opacity .15s;
     border: none;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     min-height: 2.5rem;
     line-height: 1.25;
+    -webkit-font-smoothing: antialiased;
+}
+
+.btn svg,
+.btn > i[data-lucide] {
+    flex-shrink: 0;
+}
+
+.btn svg {
+    display: block;
+    width: 1.125rem !important;
+    height: 1.125rem !important;
+    margin: 0 !important;
+    max-width: none;
+}
+
+.btn.btn-sm svg {
+    width: 1rem !important;
+    height: 1rem !important;
+}
+
+.nav-toggle.btn svg {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+}
+
+/* 包裹多个子结点时（如 Alpine x-show 切换）保持内含图标的一行对齐 */
+.btn > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    min-height: 0;
+}
+
+.btn > span svg {
+    width: 1em !important;
+    height: 1em !important;
 }
 
 .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    transform: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 .btn:active {
-    transform: translateY(0) scale(.98);
+    transform: none;
+    opacity: .94;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
@@ -79,6 +127,11 @@
 .btn-ghost:hover {
     background: var(--nav-hover);
     border-color: var(--muted);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="dark"] .btn-ghost:hover {
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
 }
 
 /**

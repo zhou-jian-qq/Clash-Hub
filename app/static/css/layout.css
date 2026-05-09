@@ -137,6 +137,11 @@ header {
 }
 
 .page-tab {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
     padding: .5rem 1rem;
     border-radius: .5rem .5rem 0 0;
     font-size: .875rem;
@@ -147,6 +152,16 @@ header {
     border-bottom: none;
     transition: color .15s, background .15s;
     margin-bottom: -1px;
+    -webkit-font-smoothing: antialiased;
+}
+
+.page-tab svg {
+    flex-shrink: 0;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
+    margin: 0 !important;
+    max-width: none;
+    display: block;
 }
 
 .page-tab:hover {
