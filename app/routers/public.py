@@ -14,6 +14,7 @@ from database import get_db
 from deps import get_setting
 from models import SubAccessLog, Subscription
 from rate_limit import sub_rate_limiter
+from request_ip import resolve_client_ip
 from services.aggregator_service import build_aggregated_config_yaml, collect_imported_proxies
 from services.config_cache import config_cache
 from models import SubProfile
@@ -22,18 +23,6 @@ router = APIRouter()
 
 SUBSCRIPTION_PROFILE_NAME = "clash_hub"
 SUBSCRIPTION_PROFILE_FILENAME = f"{SUBSCRIPTION_PROFILE_NAME}.yaml"
-
-
-def _extract_real_ip(request: Request) -> tuple[str, str | None]:
-    direct_ip = request.client.host if request.client else "unknown"
-    xff = request.headers.get("X-Forwarded-For", "").strip()
-    if xff:
-        real_ip = xff.split(",")[0].strip()
-        return direct_ip, real_ip
-    xri = request.headers.get("X-Real-IP", "").strip()
-    if xri:
-        return direct_ip, xri
-    return direct_ip, None
 
 
 @router.get("/sub/{sub_uuid}")
@@ -58,7 +47,7 @@ async def get_aggregated_sub(
             raise HTTPException(403, "无效的订阅链接")
         effective_tag = profile_tag
 
-    direct_ip, real_ip = _extract_real_ip(request)
+    direct_ip, real_ip = resolve_client_ip(request)
     user_agent = request.headers.get("User-Agent")
     db.add(SubAccessLog(ip=direct_ip, real_ip=real_ip, user_agent=user_agent))
     await db.commit()
@@ -105,7 +94,7 @@ async def get_v2ray_sub(sub_uuid: str, request: Request, db: AsyncSession = Depe
     if sub_uuid != stored_uuid:
         raise HTTPException(403, "无效的订阅链接")
 
-    direct_ip, real_ip = _extract_real_ip(request)
+    direct_ip, real_ip = resolve_client_ip(request)
     user_agent = request.headers.get("User-Agent")
     db.add(SubAccessLog(ip=direct_ip, real_ip=real_ip, user_agent=user_agent))
     await db.commit()

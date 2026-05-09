@@ -33,6 +33,7 @@ from migrations import (
     run_all_migrations,
 )
 from scheduler import start_scheduler, stop_scheduler
+from request_ip import resolve_client_ip
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("main")
@@ -158,7 +159,8 @@ async def _audit_log_middleware(request: Request, call_next):
         # 跳过登录/登出（避免记录密码）
         if path in ("/api/login", "/api/logout"):
             return response
-        direct_ip = request.client.host if request.client else "unknown"
+        direct_ip, real_ip = resolve_client_ip(request)
+        client_ip = real_ip or direct_ip
         try:
             from database import async_session as _sess_factory
             from models import AuditLog
@@ -167,7 +169,7 @@ async def _audit_log_middleware(request: Request, call_next):
                     action=method,
                     path=path,
                     payload_json=None,
-                    ip=direct_ip,
+                    ip=client_ip,
                 ))
                 await _sess.commit()
         except Exception:

@@ -231,11 +231,14 @@ class SubAccessLog(Base):
     accessed_at: Mapped[datetime] = mapped_column(DateTime, default=_utc_now)
 
     def to_dict(self):
+        display_ip = self.real_ip or self.ip
         return {
             "id": self.id,
             "ip": self.ip,
             "real_ip": self.real_ip,
-            "display_ip": self.real_ip or self.ip,
+            "display_ip": display_ip,
+            # 兼容旧前端字段名，避免页面显示为 '-'
+            "client_ip": display_ip,
             "user_agent": self.user_agent,
             "accessed_at": _iso_utc_api(self.accessed_at),
         }
