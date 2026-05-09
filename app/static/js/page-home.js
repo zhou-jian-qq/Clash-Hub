@@ -4,7 +4,6 @@
  *       alpine/store.js（home store 骨架）
  */
 
-/** 与后端 SUBSCRIPTION_PROFILE_NAME 一致 */
 const SUB_CLIENT_NAME = 'clash_hub';
 
 document.addEventListener('alpine:init', () => {
@@ -17,11 +16,8 @@ document.addEventListener('alpine:init', () => {
         return location.origin + '/sub/' + uuid + '/v2ray';
     }
     function _shadowrocketUrl(raw) {
-        try {
-            return 'sub://' + btoa(unescape(encodeURIComponent(raw)));
-        } catch (_) {
-            return 'sub://' + btoa(raw);
-        }
+        try { return 'sub://' + btoa(unescape(encodeURIComponent(raw))); }
+        catch (_) { return 'sub://' + btoa(raw); }
     }
     function _clashImportUrl(subBaseUrl) {
         return 'clash://install-config?url=' + encodeURIComponent(subBaseUrl) + '&name=' + encodeURIComponent(SUB_CLIENT_NAME);
@@ -42,8 +38,19 @@ document.addEventListener('alpine:init', () => {
             this.traffic = t;
             this.subBaseUrl = _buildSubUrl(s.sub_uuid);
             this.subV2rayUrl = _buildV2rayUrl(s.sub_uuid);
-            setTimeout(() => lucide.createIcons(), 0);
+            setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 0);
         } catch (e) { toast(e.message, 'error'); }
+
+        /* 健康检查（非阻塞）*/
+        this.loadHealth();
+    };
+
+    store.loadHealth = async function () {
+        try {
+            this.health = await api('/api/system/health');
+        } catch (_) {
+            this.health = null;
+        }
     };
 
     store.resetUuid = async function () {
@@ -66,13 +73,7 @@ document.addEventListener('alpine:init', () => {
         await copyText(this.subV2rayUrl, '已复制 V2Ray 订阅链接');
     };
 
-    store.openImportClash = function () {
-        window.location.href = _clashImportUrl(this.subBaseUrl);
-    };
-    store.openImportClashMeta = function () {
-        window.location.href = _clashImportUrl(this.subBaseUrl);
-    };
-    store.openShadowrocket = function () {
-        window.location.href = _shadowrocketUrl(this.subBaseUrl);
-    };
+    store.openImportClash = function () { window.location.href = _clashImportUrl(this.subBaseUrl); };
+    store.openImportClashMeta = function () { window.location.href = _clashImportUrl(this.subBaseUrl); };
+    store.openShadowrocket = function () { window.location.href = _shadowrocketUrl(this.subBaseUrl); };
 });

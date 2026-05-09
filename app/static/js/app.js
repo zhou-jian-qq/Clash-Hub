@@ -3,6 +3,8 @@
  * 依赖：core.js（api）、alpine/store.js（各 store 的 load action）
  */
 
+const VALID_PAGES = ['home', 'subs', 'imports', 'profiles', 'templates', 'settings', 'logs'];
+
 document.addEventListener('alpine:init', () => {
 
     /** 路由 store：维护当前激活的 Tab 名称 */
@@ -11,7 +13,9 @@ document.addEventListener('alpine:init', () => {
 
         /** 切换页面：显示/隐藏 page-* 元素，更新导航高亮，触发对应 store.load，推送 history */
         async go(name, push = true) {
-            if (!['home', 'subs', 'imports', 'config', 'logs'].includes(name)) name = 'home';
+            /* 向后兼容：旧路径 config → settings */
+            if (name === 'config') name = 'settings';
+            if (!VALID_PAGES.includes(name)) name = 'home';
 
             /* 显示/隐藏 */
             document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
@@ -27,11 +31,13 @@ document.addEventListener('alpine:init', () => {
             closeMobileNav();
 
             /* 加载数据 */
-            if (name === 'home')    await Alpine.store('home').load();
-            if (name === 'subs')    await Alpine.store('subs').load();
-            if (name === 'imports') await Alpine.store('imports').load();
-            if (name === 'config')  await loadConfigPage();
-            if (name === 'logs')    await Alpine.store('logs').load(1);
+            if (name === 'home')      await Alpine.store('home').load();
+            if (name === 'subs')      await Alpine.store('subs').load();
+            if (name === 'imports')   await Alpine.store('imports').load();
+            if (name === 'profiles')  await Alpine.store('profiles').load();
+            if (name === 'templates') await Alpine.store('templates').load();
+            if (name === 'settings')  await Alpine.store('settings').load();
+            if (name === 'logs')      await Alpine.store('logs').load(1);
 
             /* 推送 URL */
             if (push) {
@@ -40,14 +46,22 @@ document.addEventListener('alpine:init', () => {
                     history.pushState({ page: name }, '', url);
                 }
             }
+
+            /* 重建 Lucide 图标 */
+            if (typeof lucide !== 'undefined') {
+                setTimeout(() => lucide.createIcons(), 30);
+            }
         },
 
         fromPath() {
             const path = window.location.pathname;
-            if (path.startsWith('/subs')) return 'subs';
-            if (path.startsWith('/imports')) return 'imports';
-            if (path.startsWith('/config')) return 'config';
-            if (path.startsWith('/logs')) return 'logs';
+            if (path.startsWith('/subs'))      return 'subs';
+            if (path.startsWith('/imports'))   return 'imports';
+            if (path.startsWith('/profiles'))  return 'profiles';
+            if (path.startsWith('/templates')) return 'templates';
+            if (path.startsWith('/settings'))  return 'settings';
+            if (path.startsWith('/config'))    return 'settings';  /* 兼容旧路径 */
+            if (path.startsWith('/logs'))      return 'logs';
             return 'home';
         },
     });
@@ -79,7 +93,29 @@ document.addEventListener('alpine:initialized', async () => {
         await api('/api/settings');
         const name = Alpine.store('router').fromPath();
         await Alpine.store('router').go(name, false);
+        /* 顶栏健康灯（非阻塞） */
+        _refreshHeaderHealth();
     } catch (e) {
         console.error('初始化失败', e);
     }
 });
+
+/** 更新顶栏健康灯 */
+async function _refreshHeaderHealth() {
+    try {
+        const h = await api('/api/system/health');
+        const dot = document.getElementById('headerHealthDot');
+        const txt = document.getElementById('headerHealthText');
+        if (!dot) return;
+        const mihOk = h.mihomo && h.mihomo.available;
+        const dbOk  = h.db && h.db.ok;
+        const allOk = dbOk && h.scheduler && h.scheduler.running;
+        dot.className = 'health-dot ' + (allOk ? 'ok' : !dbOk ? 'error' : 'warn');
+        if (txt) txt.textContent = allOk ? '系统正常' : !dbOk ? '数据库异常' : '部分异常';
+    } catch (_) {}
+}
+
+/** 供旧 loadConfigPage() 调用的兼容桩（settings store 的 load 内部会执行同样的逻辑） */
+async function loadConfigPage() {
+    await Alpine.store('settings').load();
+}

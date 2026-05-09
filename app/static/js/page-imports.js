@@ -1,13 +1,12 @@
 /**
  * 节点管理 — Alpine store action 实现
- * 依赖：core.js（api / toast / formatIsoTime / copyText）
- *       alpine/store.js（store 骨架）
+ * 依赖：core.js（api / toast / formatIsoTime / copyText）、alpine/store.js（store 骨架）
  */
 
 document.addEventListener('alpine:init', () => {
     const store = Alpine.store('imports');
 
-    /** 为每个节点附加响应式测速状态字段 */
+    /** 为每个节点附带响应式测速状态字段 */
     function _enrichNode(n) {
         n._checking = false;
         n._available = null;
@@ -22,7 +21,9 @@ document.addEventListener('alpine:init', () => {
                 b.nodes = (b.nodes || []).map(_enrichNode);
                 return b;
             });
-        } catch (e) { toast(e.message, 'error'); }
+        } catch (e) {
+            toast(e.message, 'error');
+        }
     };
 
     store.importBatch = async function (name, text) {
@@ -36,8 +37,11 @@ document.addEventListener('alpine:init', () => {
             if (r.skipped) msg += '，跳过 ' + r.skipped + ' 行无效内容';
             toast(msg);
             await this.load();
-            Alpine.store('config').schedulePreview();
-        } catch (e) { toast(e.message, 'error'); throw e; }
+            Alpine.store('templates').schedulePreview();
+        } catch (e) {
+            toast(e.message, 'error');
+            throw e;
+        }
     };
 
     store.renameBatch = async function (id, name) {
@@ -45,8 +49,11 @@ document.addEventListener('alpine:init', () => {
             await api('/api/import-batches/' + id, { method: 'PUT', body: JSON.stringify({ name }) });
             toast('已更新');
             await this.load();
-            Alpine.store('config').schedulePreview();
-        } catch (e) { toast(e.message, 'error'); throw e; }
+            Alpine.store('templates').schedulePreview();
+        } catch (e) {
+            toast(e.message, 'error');
+            throw e;
+        }
     };
 
     store.deleteBatch = async function (id) {
@@ -55,8 +62,10 @@ document.addEventListener('alpine:init', () => {
             await api('/api/import-batches/' + id, { method: 'DELETE' });
             toast('已删除批次');
             await this.load();
-            Alpine.store('config').schedulePreview();
-        } catch (e) { toast(e.message, 'error'); }
+            Alpine.store('templates').schedulePreview();
+        } catch (e) {
+            toast(e.message, 'error');
+        }
     };
 
     store.setBatchAllEnabled = async function (batchId, enabled) {
@@ -68,8 +77,10 @@ document.addEventListener('alpine:init', () => {
             });
             toast('已批量' + act);
             await this.load();
-            Alpine.store('config').schedulePreview();
-        } catch (e) { toast(e.message, 'error'); }
+            Alpine.store('templates').schedulePreview();
+        } catch (e) {
+            toast(e.message, 'error');
+        }
     };
 
     store.toggleNodeEnabled = async function (id, enabled) {
@@ -77,7 +88,7 @@ document.addEventListener('alpine:init', () => {
             await api('/api/imported-nodes/' + id, { method: 'PUT', body: JSON.stringify({ enabled }) });
             toast(enabled ? '已启用' : '已禁用');
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) {
             toast(e.message, 'error');
             await this.load();
@@ -89,8 +100,11 @@ document.addEventListener('alpine:init', () => {
             await api('/api/imported-nodes/' + id, { method: 'PUT', body: JSON.stringify({ proxy_yaml }) });
             toast('已保存');
             await this.load();
-            Alpine.store('config').schedulePreview();
-        } catch (e) { toast(e.message, 'error'); throw e; }
+            Alpine.store('templates').schedulePreview();
+        } catch (e) {
+            toast(e.message, 'error');
+            throw e;
+        }
     };
 
     store.deleteNode = async function (id) {
@@ -99,19 +113,30 @@ document.addEventListener('alpine:init', () => {
             await api('/api/imported-nodes/' + id, { method: 'DELETE' });
             toast('已删除');
             await this.load();
-            Alpine.store('config').schedulePreview();
-        } catch (e) { toast(e.message, 'error'); }
+            Alpine.store('templates').schedulePreview();
+        } catch (e) {
+            toast(e.message, 'error');
+        }
     };
 
     store.nodeToV2rayUri = async function (proxy_yaml) {
-        if (!proxy_yaml.trim()) { toast('内容为空', 'error'); return; }
+        if (!proxy_yaml.trim()) {
+            toast('内容为空', 'error');
+            return;
+        }
         try {
             const r = await api('/api/proxies/to-v2ray-uri', {
                 method: 'POST',
                 body: JSON.stringify({ proxy_yaml }),
             });
-            await copyText(r.uri, '已复制 V2Ray 分享链接');
-        } catch (e) { toast(e.message, 'error'); }
+            if (r.uri) {
+                await copyText(r.uri, '已复制 V2Ray 链接');
+            } else {
+                toast('该节点类型暂不支持转换', 'error');
+            }
+        } catch (e) {
+            toast(e.message, 'error');
+        }
     };
 
     /** 单节点测速：更新节点的三个响应式状态字段 */
@@ -130,11 +155,20 @@ document.addEventListener('alpine:init', () => {
                 const head = r.available ? '可用' : '不可用';
                 let tcpLine = '';
                 const pk = r.probe_kind || '';
-                if (r.latency_ms != null)
-                    tcpLine = '\n延迟（' + (pk === 'httpx' ? '经代理 URL' : pk === 'mihomo' ? 'Mihomo URL' : pk === 'tcp-fallback' ? 'TCP 兜底' : '探测') + '）: ' + Math.round(r.latency_ms) + ' ms';
-                else if (r.tcp_tested && !r.available)
+                if (r.latency_ms != null) {
+                    const via =
+                        pk === 'httpx'
+                            ? '经代理 URL'
+                            : pk === 'mihomo'
+                              ? 'Mihomo URL'
+                              : pk === 'tcp-fallback'
+                                ? 'TCP 兜底'
+                                : '探测';
+                    tcpLine = '\n延迟（' + via + '）：' + Math.round(r.latency_ms) + ' ms';
+                } else if (r.tcp_tested && !r.available) {
                     tcpLine = '\n已尝试探测（失败，见上文说明）';
-                showResultModal('「' + (r.display_name || '') + '」 ' + head, (r.message || '') + tcpLine);
+                }
+                showResultModal('「' + (r.display_name || '') + '」' + head, (r.message || '') + tcpLine);
             }
         } catch (e) {
             node._available = false;
@@ -151,17 +185,24 @@ document.addEventListener('alpine:init', () => {
             toast('该批次下无节点', 'error');
             return;
         }
-        toast('开始批量测速 ' + b.nodes.length + ' 个节点...');
+        toast('开始批量测速 ' + b.nodes.length + ' 个节点…');
         const nodes = b.nodes;
         const concurrency = 10;
         let i = 0;
         const next = async () => {
             if (i >= nodes.length) return;
             const node = nodes[i++];
-            try { await this.checkNode(node.id, false); } catch (_) {}
+            try {
+                await this.checkNode(node.id, false);
+            } catch (_) {}
             await next();
         };
-        await Promise.all(Array.from({ length: concurrency }, next));
+        await Promise.all(Array.from({ length: concurrency }, () => next()));
         toast('批次 ' + b.name + ' 测速完成');
+    };
+
+    /** showNodeQR：由 page_imports.html 的 openQR 处理；此处保留兼容入口 */
+    store.showNodeQR = async function (nodeId) {
+        console.log('showNodeQR:', nodeId);
     };
 });

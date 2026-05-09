@@ -1,6 +1,5 @@
 /**
  * 订阅管理 — Alpine store action 实现
- * 在 alpine:init 事件中向 Alpine.store('subs') 注入所有 action。
  * 依赖：core.js（api / toast / formatBytes / formatDate / formatIsoTime / showResultModal）
  *       alpine/store.js（store 骨架）
  */
@@ -8,7 +7,6 @@
 document.addEventListener('alpine:init', () => {
     const store = Alpine.store('subs');
 
-    /** 计算流量进度条所需的 _pct / _color 字段 */
     function _enrichSub(s) {
         const pct = s.total > 0 ? Math.min(100, (s.used / s.total) * 100) : 0;
         s._pct = pct.toFixed(1);
@@ -29,11 +27,8 @@ document.addEventListener('alpine:init', () => {
             await api('/api/subscriptions/' + id, { method: 'PUT', body: JSON.stringify({ enabled }) });
             toast(enabled ? '已启用' : '已禁用');
             await this.load();
-            Alpine.store('config').schedulePreview();
-        } catch (e) {
-            toast(e.message, 'error');
-            await this.load();
-        }
+            Alpine.store('templates').schedulePreview();
+        } catch (e) { toast(e.message, 'error'); await this.load(); }
     };
 
     store.batchEnable = async function (enabled) {
@@ -43,7 +38,7 @@ document.addEventListener('alpine:init', () => {
             await api('/api/subscriptions/batch-enabled', { method: 'POST', body: JSON.stringify({ ids, enabled }) });
             toast(enabled ? '已批量启用' : '已批量禁用');
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) { toast(e.message, 'error'); }
     };
 
@@ -55,7 +50,7 @@ document.addEventListener('alpine:init', () => {
             const r = await api('/api/subscriptions/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) });
             toast('已删除 ' + (r.deleted || ids.length) + ' 条');
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) { toast(e.message, 'error'); }
     };
 
@@ -71,18 +66,62 @@ document.addEventListener('alpine:init', () => {
             if (n > 0 && r.disabled_names && r.disabled_names.length)
                 alert('已自动禁用的订阅：\n' + r.disabled_names.join('\n'));
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) { toast(e.message, 'error'); }
     };
 
+    /* 旧同步刷新（回退用） */
     store.refreshAll = async function () {
         try {
             toast('正在刷新所有订阅...');
             await api('/api/subscriptions/refresh-all', { method: 'POST' });
             toast('全部刷新完成');
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) { toast(e.message, 'error'); }
+    };
+
+    /* SSE 实时刷新 */
+    store.refreshAllSSE = async function () {
+        if (this.sseRunning) return;
+        this.sseRunning = true;
+        this.sseItems = [];
+
+        /* 先在 SSE 列表里预填订阅行 */
+        for (const s of this.items) {
+            this.sseItems.push({ id: s.id, name: s.name, status: 'pending', ok: null, node_count: null, latency_ms: null });
+        }
+
+        const es = new EventSource('/api/subscriptions/refresh-stream');
+        es.onmessage = (ev) => {
+            try {
+                const d = JSON.parse(ev.data);
+                const idx = this.sseItems.findIndex(x => x.id === d.sub_id);
+                if (idx >= 0) {
+                    this.sseItems[idx] = {
+                        ...this.sseItems[idx],
+                        status: d.ok ? 'ok' : 'error',
+                        ok: d.ok,
+                        node_count: d.node_count,
+                        latency_ms: d.latency_ms,
+                    };
+                    this.sseItems = [...this.sseItems];
+                }
+            } catch (_) {}
+        };
+        es.addEventListener('done', async () => {
+            es.close();
+            this.sseRunning = false;
+            await this.load();
+            Alpine.store('templates').schedulePreview();
+            toast('全部刷新完成');
+        });
+        es.onerror = () => {
+            es.close();
+            this.sseRunning = false;
+            this.load();
+            toast('刷新流中断，请手动重试', 'error');
+        };
     };
 
     store.refresh = async function (id) {
@@ -90,7 +129,7 @@ document.addEventListener('alpine:init', () => {
             await api('/api/subscriptions/' + id + '/refresh', { method: 'POST' });
             toast('刷新成功');
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) { toast(e.message, 'error'); }
     };
 
@@ -100,14 +139,9 @@ document.addEventListener('alpine:init', () => {
             const r = await api('/api/subscriptions/' + id + '/check', { method: 'POST', body: '{}' });
             const state = r.enabled ? '当前：启用' : '当前：禁用';
             const head = r.available ? '检测通过（可用）' : '检测未通过（不可用）';
-            let tcpLine = '';
-            const pk = r.probe_kind || '';
-            if (r.latency_ms != null)
-                tcpLine = '\n延迟（' + (pk === 'httpx' ? '经代理 URL' : pk === 'mihomo' ? 'Mihomo URL' : pk === 'tcp-fallback' ? 'TCP 兜底' : '探测') + '）: ' + Math.round(r.latency_ms) + ' ms';
-            else if (r.tcp_tested && !r.available)
-                tcpLine = '\n已尝试探测（失败，见上文说明）';
-            const detail = (r.message || '') + tcpLine + '\n\n' + state + '\n请用左侧开关自行调整启用/禁用。';
-            showResultModal('「' + (r.name || '') + '」 ' + head, detail);
+            let extra = '';
+            if (r.latency_ms != null) extra = '\n延迟: ' + Math.round(r.latency_ms) + ' ms';
+            showResultModal('「' + (r.name || '') + '」 ' + head, (r.message || '') + extra + '\n\n' + state);
         } catch (e) { toast(e.message, 'error'); }
     };
 
@@ -116,6 +150,7 @@ document.addEventListener('alpine:init', () => {
             name: form.name,
             url: form.url,
             prefix: form.prefix,
+            tags: form.tags || '',
             enabled: form.enabled,
             auto_disable: form.auto_disable,
         };
@@ -128,7 +163,7 @@ document.addEventListener('alpine:init', () => {
             }
             toast(form.id ? '已更新' : '已添加');
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) { toast(e.message, 'error'); throw e; }
     };
 
@@ -138,30 +173,19 @@ document.addEventListener('alpine:init', () => {
             await api('/api/subscriptions/' + id, { method: 'DELETE' });
             toast('已删除');
             await this.load();
-            Alpine.store('config').schedulePreview();
+            Alpine.store('templates').schedulePreview();
         } catch (e) { toast(e.message, 'error'); }
     };
 
     /* ── 节点明细 ── */
-    store.currentNodes = [];
-    store.nodesLoading = false;
-
     store.loadNodes = async function (subId) {
         this.currentNodes = [];
         this.nodesLoading = true;
         try {
             const r = await api('/api/subscriptions/' + subId + '/nodes');
-            this.currentNodes = (r.nodes || []).map(n => ({
-                ...n,
-                _checking: false,
-                _available: null,
-                _latencyMs: null,
-            }));
-        } catch (e) {
-            toast(e.message, 'error');
-        } finally {
-            this.nodesLoading = false;
-        }
+            this.currentNodes = (r.nodes || []).map(n => ({ ...n, _checking: false, _available: null, _latencyMs: null }));
+        } catch (e) { toast(e.message, 'error'); }
+        finally { this.nodesLoading = false; }
     };
 
     store.checkNode = async function (idx) {
@@ -170,17 +194,11 @@ document.addEventListener('alpine:init', () => {
         node._checking = true;
         node._available = null;
         try {
-            const r = await api('/api/proxies/check', {
-                method: 'POST',
-                body: JSON.stringify({ proxy_yaml: node.proxy_yaml }),
-            });
+            const r = await api('/api/proxies/check', { method: 'POST', body: JSON.stringify({ proxy_yaml: node.proxy_yaml }) });
             node._available = r.available;
             node._latencyMs = r.latency_ms ?? null;
-        } catch (e) {
-            node._available = false;
-        } finally {
-            node._checking = false;
-        }
+        } catch (e) { node._available = false; }
+        finally { node._checking = false; }
     };
 
     store.batchCheckNodes = async function () {

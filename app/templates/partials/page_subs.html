@@ -1,21 +1,41 @@
-{# 订阅管理 — Alpine.js 响应式版本 #}
+{# 订阅管理 — Alpine.js 响应式版本（含标签/SSE/去重） #}
 <div id="page-subs" class="hidden" x-data="{
     get store() { return $store.subs; },
 
     /* ── 添加/编辑订阅弹窗 ── */
     subModal: false,
-    subForm: { id: null, name: '', url: '', prefix: '', enabled: true, auto_disable: true },
+    subForm: { id: null, name: '', url: '', prefix: '', tags: '', enabled: true, auto_disable: true },
+    _tagInput: '',
+    get tagChips() {
+        return (this.subForm.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+    },
+    addTagChip() {
+        const v = this._tagInput.trim();
+        if (!v) return;
+        const chips = this.tagChips;
+        if (!chips.includes(v)) chips.push(v);
+        this.subForm.tags = chips.join(',');
+        this._tagInput = '';
+    },
+    removeTagChip(tag) {
+        this.subForm.tags = this.tagChips.filter(t => t !== tag).join(',');
+    },
     openAddSub() {
-        this.subForm = { id: null, name: '', url: '', prefix: '', enabled: true, auto_disable: true };
+        this.subForm = { id: null, name: '', url: '', prefix: '', tags: '', enabled: true, auto_disable: true };
+        this._tagInput = '';
         this.subModal = true;
         this.$nextTick(() => { const el = document.getElementById('mSubName'); if (el) el.focus(); });
     },
     openEditSub(s) {
-        this.subForm = { id: s.id, name: s.name, url: s.url, prefix: s.prefix || '', enabled: s.enabled, auto_disable: s.auto_disable };
+        this.subForm = { id: s.id, name: s.name, url: s.url, prefix: s.prefix || '', tags: s.tags || '', enabled: s.enabled, auto_disable: s.auto_disable };
+        this._tagInput = '';
         this.subModal = true;
         this.$nextTick(() => { const el = document.getElementById('mSubName'); if (el) el.focus(); });
     },
-    async saveSub() { await $store.subs.save(this.subForm); this.subModal = false; },
+    async saveSub() {
+        try { await $store.subs.save(this.subForm); this.subModal = false; }
+        catch (_) {}
+    },
 
     /* ── 节点明细弹窗 ── */
     nodesModal: false,
@@ -26,90 +46,177 @@
         await $store.subs.loadNodes(s.id);
     },
 
-    /* ── 检测结果弹窗 ── */
-    resultModal: false,
-    resultTitle: '',
-    resultContent: '',
-    showResult(title, content) {
-        this.resultTitle = title;
-        this.resultContent = content;
-        this.resultModal = true;
+    /* ── 去重预览弹窗 ── */
+    dedupeModal: false,
+    dedupeData: null,
+    dedupeAggressive: false,
+    dedupeLoading: false,
+    async openDedupe() {
+        this.dedupeModal = true;
+        await this.loadDedupe();
     },
-}" @keydown.escape.window="subModal = false; nodesModal = false; resultModal = false">
+    async loadDedupe() {
+        this.dedupeLoading = true;
+        try {
+            this.dedupeData = await api('/api/subscriptions/dedupe-preview?aggressive=' + this.dedupeAggressive);
+        } catch (e) { toast(e.message, 'error'); }
+        finally { this.dedupeLoading = false; }
+    },
+}" @keydown.escape.window="subModal = false; nodesModal = false; dedupeModal = false">
 
     <!-- 工具栏 -->
-    <div class="mb-4 space-y-3">
-        <h2 class="text-xl font-bold">订阅管理</h2>
-        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 pt-2 border-t border-slate-200/80 dark:border-slate-700/60">
-            <div class="flex flex-wrap items-center gap-3 sm:gap-4">
-                <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none shrink-0"
-                    title="勾选列表中的订阅">
-                    <input type="checkbox"
-                        class="rounded border-slate-500"
+    <div class="mb-5 space-y-3">
+        <div class="flex items-center justify-between">
+            <h2 class="text-xl font-bold">订阅管理</h2>
+            <button type="button" class="btn btn-primary btn-sm" @click="openAddSub()">
+                <i data-lucide="plus" class="w-4 h-4 mr-1"></i>添加订阅
+            </button>
+        </div>
+
+        <!-- 标签筛选 -->
+        <template x-if="store.allTags.length > 0">
+            <div class="flex flex-wrap gap-1.5 items-center">
+                <span class="text-xs text-slate-400">标签筛选：</span>
+                <button type="button"
+                    class="chip"
+                    :class="!store.tagFilter && 'bg-blue-600/20 text-blue-400'"
+                    @click="store.tagFilter=''">全部</button>
+                <template x-for="tag in store.allTags" :key="tag">
+                    <button type="button"
+                        class="chip"
+                        :class="store.tagFilter===tag && 'bg-blue-600/20 text-blue-400'"
+                        @click="store.tagFilter = store.tagFilter===tag ? '' : tag"
+                        x-text="tag"></button>
+                </template>
+            </div>
+        </template>
+
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-2 border-t" style="border-color:var(--border)">
+            <div class="flex flex-wrap items-center gap-2">
+                <label class="flex items-center gap-2 text-sm cursor-pointer select-none shrink-0"
+                    style="color:var(--muted)">
+                    <input type="checkbox" class="rounded"
+                        style="accent-color:var(--accent)"
                         :checked="store.allSelected"
                         :indeterminate="store.someSelected"
                         @change="store.selectAll($event.target.checked)"> 全选
                 </label>
-                <button type="button" class="btn btn-outline-danger btn-sm" @click="store.batchDelete()"
-                    title="删除已勾选的订阅">批量删除</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" @click="store.batchDelete()">批量删除</button>
             </div>
-            <div class="flex flex-wrap gap-2 items-center justify-start sm:justify-end w-full sm:w-auto">
-                <button type="button" class="btn btn-ghost btn-sm" @click="store.refreshAll()">全部刷新</button>
+            <div class="flex flex-wrap gap-1.5 items-center">
+                <!-- SSE 刷新 -->
+                <button type="button" class="btn btn-ghost btn-sm"
+                    :disabled="store.sseRunning"
+                    @click="store.sseRunning ? null : store.refreshAllSSE()">
+                    <span x-show="!store.sseRunning"><i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1 inline-block"></i>全部刷新</span>
+                    <span x-show="store.sseRunning" class="flex items-center gap-1"><span class="sse-spinner"></span>刷新中…</span>
+                </button>
                 <button type="button" class="btn btn-outline-accent btn-sm" @click="store.batchCheck()"
-                    title="仅检测列表已勾选的订阅；不可用且原为启用的将自动禁用">批量检测</button>
+                    title="检测已勾选订阅">批量检测</button>
+                <button type="button" class="btn btn-ghost btn-sm" @click="openDedupe()"
+                    title="预览可去重的重复节点">去重预览</button>
                 <button type="button" class="btn btn-outline-warn btn-sm" @click="store.batchEnable(false)">批量禁用</button>
                 <button type="button" class="btn btn-success btn-sm" @click="store.batchEnable(true)">批量启用</button>
-                <button type="button" class="btn btn-primary btn-sm" @click="openAddSub()">添加订阅</button>
             </div>
         </div>
     </div>
 
+    <!-- SSE 进度面板 -->
+    <template x-if="store.sseRunning || store.sseItems.length > 0">
+        <div class="card mb-4 p-4">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium">刷新进度</span>
+                <button x-show="!store.sseRunning" type="button" class="text-xs text-slate-400 hover:text-slate-300"
+                    @click="store.sseItems=[]">清除</button>
+            </div>
+            <div class="space-y-0">
+                <template x-for="item in store.sseItems" :key="item.id">
+                    <div class="sse-item">
+                        <template x-if="item.status==='pending'">
+                            <span class="sse-spinner"></span>
+                        </template>
+                        <template x-if="item.status==='ok'">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 text-green-500 flex-shrink-0"></i>
+                        </template>
+                        <template x-if="item.status==='error'">
+                            <i data-lucide="x-circle" class="w-3.5 h-3.5 text-red-500 flex-shrink-0"></i>
+                        </template>
+                        <span class="flex-1 min-w-0 truncate text-sm" x-text="item.name"></span>
+                        <template x-if="item.status==='ok'">
+                            <span class="text-xs text-slate-400" x-text="item.node_count + ' 节点'"></span>
+                        </template>
+                        <template x-if="item.latency_ms != null">
+                            <span x-html="renderLatencyBar(item.latency_ms, true)"></span>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="store.sseRunning">
+                    <div class="sse-item text-xs text-slate-400">
+                        <span class="sse-spinner"></span>
+                        正在刷新剩余订阅...
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
     <!-- 列表 -->
     <div id="subsList">
-        <template x-if="store.items.length === 0">
-            <div class="card text-center text-slate-400 py-8">暂无订阅，点击添加订阅</div>
+        <template x-if="store.filteredItems.length === 0">
+            <div class="card">
+                <div class="empty-state">
+                    <i data-lucide="rss" class="w-10 h-10"></i>
+                    <p class="font-medium">暂无订阅</p>
+                    <p class="text-sm">点击右上角「添加订阅」开始</p>
+                </div>
+            </div>
         </template>
 
-        <template x-for="s in store.items" :key="s.id">
-            <div class="card mb-3" :data-sub-id="s.id">
-                <!-- 头部行：勾选、开关、名称、操作按钮 -->
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-3">
+        <template x-for="s in store.filteredItems" :key="s.id">
+            <div class="card mb-3 card-no-hover">
+                <!-- 头部行 -->
+                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3 gap-2">
                     <div class="flex items-center gap-2 min-w-0 flex-wrap">
-                        <input type="checkbox" class="sub-cb rounded border-slate-500 shrink-0"
+                        <input type="checkbox" class="rounded flex-shrink-0"
+                            style="accent-color:var(--accent)"
                             :checked="store.selectedIds.has(s.id)"
-                            @change="store.toggleSelect(s.id, $event.target.checked)"
-                            title="勾选后可批量启用/禁用/检测">
-                        <label class="sub-switch mr-1" :title="s.enabled ? '点击禁用' : '点击启用'">
-                            <input type="checkbox" role="switch" aria-label="启用订阅"
+                            @change="store.toggleSelect(s.id, $event.target.checked)">
+                        <label class="sub-switch" :title="s.enabled ? '点击禁用' : '点击启用'">
+                            <input type="checkbox" role="switch"
                                 :checked="s.enabled"
                                 @change="store.toggleEnabled(s.id, $event.target.checked)">
                             <span class="sub-switch-slider"></span>
                         </label>
-                        <span class="tag" :class="s.enabled ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'"
+                        <span class="tag text-xs" :class="s.enabled ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'"
                             x-text="s.enabled ? '启用' : '禁用'"></span>
-                        <span class="font-semibold min-w-0 max-w-full break-words" x-text="s.name"></span>
+                        <span class="font-semibold min-w-0 truncate max-w-xs" x-text="s.name"></span>
                         <template x-if="s.prefix">
-                            <span class="tag bg-blue-600/20 text-blue-400" x-text="s.prefix"></span>
+                            <span class="chip text-xs" x-text="s.prefix"></span>
                         </template>
                     </div>
-                    <div class="flex flex-wrap gap-1 sm:justify-end">
+                    <div class="flex flex-wrap gap-1 sm:justify-end flex-shrink-0">
                         <button type="button" class="btn btn-ghost btn-sm" @click="store.refresh(s.id)">刷新</button>
-                        <button type="button" class="btn btn-outline-accent btn-sm" @click="store.check(s.id)"
-                            title="检测：拉取+解析；单节点时额外 TCP 建连延迟">检测</button>
-                        <button type="button" class="btn btn-outline-accent btn-sm" @click="openNodes(s)"
-                            title="查看并测速订阅下的节点">节点明细</button>
+                        <button type="button" class="btn btn-outline-accent btn-sm" @click="store.check(s.id)">检测</button>
+                        <button type="button" class="btn btn-outline-accent btn-sm" @click="openNodes(s)">节点明细</button>
                         <button type="button" class="btn btn-secondary btn-sm" @click="openEditSub(s)">编辑</button>
-                        <button type="button" class="btn btn-danger btn-sm" @click="store.deleteItem(s.id)">删除</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" @click="store.deleteItem(s.id)">删除</button>
                     </div>
                 </div>
-                <!-- 统计信息行 -->
-                <div class="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-1 sm:gap-4 text-sm text-slate-400 mb-2">
-                    <span>节点: <span x-text="s.node_count"></span></span>
-                    <span>已用: <span x-text="formatBytes(s.used)"></span> / <span x-text="formatBytes(s.total)"></span></span>
-                    <span>到期: <span x-text="formatDate(s.expire)"></span></span>
-                    <span>同步: <span x-text="formatIsoTime(s.last_sync)"></span></span>
-                    <span>添加: <span x-text="formatIsoTime(s.created_at)"></span></span>
-                    <span>更新: <span x-text="formatIsoTime(s.updated_at)"></span></span>
+                <!-- 标签 -->
+                <template x-if="s.tags">
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        <template x-for="tag in (s.tags||'').split(',').map(t=>t.trim()).filter(Boolean)" :key="tag">
+                            <span class="chip text-xs cursor-pointer" @click="store.tagFilter=tag" x-text="tag"></span>
+                        </template>
+                    </div>
+                </template>
+                <!-- 统计 -->
+                <div class="flex flex-wrap gap-3 text-xs mb-2" style="color:var(--muted)">
+                    <span>节点 <span class="font-medium" style="color:var(--text)" x-text="s.node_count"></span></span>
+                    <span>已用 <span class="font-medium" style="color:var(--text)" x-text="formatBytes(s.used)"></span>
+                        / <span x-text="formatBytes(s.total)"></span></span>
+                    <span>到期 <span class="font-medium" style="color:var(--text)" x-text="formatDate(s.expire)"></span></span>
+                    <span>同步 <span x-text="formatIsoTime(s.last_sync)"></span></span>
                 </div>
                 <!-- 流量进度条 -->
                 <div class="progress-bar">
@@ -122,30 +229,43 @@
     <!-- ── 添加/编辑订阅弹窗 ── -->
     <template x-if="subModal">
         <div class="modal-bg" @click.self="subModal = false">
-            <div class="card w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <h3 class="text-lg font-bold mb-4" x-text="subForm.id ? '编辑订阅' : '添加订阅'"></h3>
-                <div class="space-y-3">
+            <div class="card w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold mb-5" x-text="subForm.id ? '编辑订阅' : '添加订阅'"></h3>
+                <div class="space-y-4">
                     <div>
-                        <label class="text-sm text-slate-400">名称</label>
-                        <input id="mSubName" x-model="subForm.name">
-                    </div>
-                    <div>
-                        <label class="text-sm text-slate-400">机场订阅链接</label>
-                        <input x-model="subForm.url" placeholder="仅支持 https:// 或 http:// 订阅地址">
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">名称 <span class="text-red-400">*</span></label>
+                        <input id="mSubName" x-model="subForm.name" placeholder="机场名称">
                     </div>
                     <div>
-                        <label class="text-sm text-slate-400">前缀</label>
-                        <input x-model="subForm.prefix" placeholder="可选, 用于区分来源">
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">订阅链接 <span class="text-red-400">*</span></label>
+                        <input x-model="subForm.url" placeholder="https://...">
                     </div>
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" x-model="subForm.enabled"> 启用
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" x-model="subForm.auto_disable"> 自动禁用
-                        </label>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">节点前缀</label>
+                        <input x-model="subForm.prefix" placeholder="可选，用于区分来源">
                     </div>
-                    <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+                    <!-- 标签 -->
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">标签</label>
+                        <div class="flex flex-wrap gap-1.5 mb-2">
+                            <template x-for="tag in tagChips" :key="tag">
+                                <span class="chip">
+                                    <span x-text="tag"></span>
+                                    <span class="chip-close" @click="removeTagChip(tag)">×</span>
+                                </span>
+                            </template>
+                        </div>
+                        <div class="flex gap-2">
+                            <input x-model="_tagInput" placeholder="输入标签后按 Enter 或点击添加"
+                                @keydown.enter.prevent="addTagChip()">
+                            <button type="button" class="btn btn-ghost btn-sm flex-shrink-0" @click="addTagChip()">添加</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <label class="form-check"><input type="checkbox" x-model="subForm.enabled"><span>启用</span></label>
+                        <label class="form-check"><input type="checkbox" x-model="subForm.auto_disable"><span>不可用时自动禁用</span></label>
+                    </div>
+                    <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-2">
                         <button type="button" class="btn btn-secondary" @click="subModal = false">取消</button>
                         <button type="button" class="btn btn-primary" @click="saveSub()"
                             x-text="subForm.id ? '保存' : '添加'"></button>
@@ -159,61 +279,46 @@
     <template x-if="nodesModal">
         <div class="modal-bg" @click.self="nodesModal = false; store.currentNodes = []">
             <div class="card w-full max-w-4xl max-h-[90vh] flex flex-col">
-                <h3 class="text-lg font-bold mb-3 border-b border-slate-700/50 pb-2 flex flex-wrap items-center justify-between gap-2">
-                    <span x-text="nodesModalTitle"></span>
+                <div class="flex items-center justify-between mb-3 border-b pb-3" style="border-color:var(--border)">
+                    <h3 class="text-base font-bold truncate" x-text="nodesModalTitle"></h3>
                     <button type="button" class="btn btn-secondary btn-sm" @click="nodesModal = false; store.currentNodes = []">关闭</button>
-                </h3>
-                <!-- 加载中 -->
+                </div>
                 <template x-if="store.nodesLoading">
-                    <div class="flex-1 p-8 text-center text-slate-400">正在实时拉取并解析节点配置，请稍候...</div>
+                    <div class="flex-1 p-8 text-center" style="color:var(--muted)">正在拉取节点配置，请稍候...</div>
                 </template>
-                <!-- 无节点 -->
                 <template x-if="!store.nodesLoading && store.currentNodes.length === 0">
-                    <div class="flex-1 p-8 text-center text-slate-400">未解析到任何有效节点</div>
+                    <div class="empty-state flex-1">
+                        <i data-lucide="server-off" class="w-8 h-8"></i>
+                        <span>未解析到任何有效节点</span>
+                    </div>
                 </template>
-                <!-- 节点列表 -->
                 <template x-if="!store.nodesLoading && store.currentNodes.length > 0">
                     <div class="flex-1 overflow-y-auto">
-                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
-                            <span class="text-sm text-slate-400">共解析到 <span x-text="store.currentNodes.length"></span> 个节点（关闭弹窗后状态将不被保留）</span>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm" style="color:var(--muted)">共 <span x-text="store.currentNodes.length"></span> 个节点</span>
                             <button type="button" class="btn btn-outline-accent btn-sm" @click="store.batchCheckNodes()">批量测速</button>
                         </div>
-                        <div class="border border-slate-700/50 rounded-lg overflow-hidden">
+                        <div class="border rounded-xl overflow-hidden" style="border-color:var(--border)">
                             <template x-for="(n, i) in store.currentNodes" :key="i">
-                                <div class="flex flex-wrap items-center gap-2 sm:gap-3 p-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 transition-colors">
-                                    <span class="text-xs text-slate-500 w-6 text-right" x-text="i + 1"></span>
-                                    <span class="font-medium min-w-0 flex-1 basis-[12rem] truncate md:max-w-md" :title="n.name" x-text="n.name"></span>
-                                    <span class="tag bg-slate-600/50 text-xs shrink-0" x-text="n.type"></span>
-                                    <!-- 延迟状态 -->
+                                <div class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2.5 border-b last:border-0 hover:bg-slate-800/20 transition-colors" style="border-color:var(--border)">
+                                    <span class="text-xs w-6 text-right flex-shrink-0" style="color:var(--muted)" x-text="i + 1"></span>
+                                    <span class="font-medium min-w-0 flex-1 basis-48 truncate text-sm" :title="n.name" x-text="n.name"></span>
+                                    <span class="tag text-xs flex-shrink-0" style="background:var(--nav-hover)" x-text="n.type"></span>
                                     <span class="inline-flex items-center gap-1 text-xs sm:ml-auto">
                                         <template x-if="n._checking">
-                                            <span class="inline-flex items-center gap-1">
-                                                <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                                                <span class="text-slate-400">测速中...</span>
+                                            <span class="flex items-center gap-1">
+                                                <span class="sse-spinner"></span>
+                                                <span style="color:var(--muted)">测速中</span>
                                             </span>
                                         </template>
                                         <template x-if="!n._checking && n._available === null">
-                                            <span class="inline-flex items-center gap-1 text-slate-400">
-                                                <span class="w-2 h-2 rounded-full bg-slate-500"></span>
-                                                <span>-</span>
-                                            </span>
+                                            <span style="color:var(--muted)">-</span>
                                         </template>
-                                        <template x-if="!n._checking && n._available === true">
-                                            <span class="inline-flex items-center gap-1">
-                                                <span class="w-2 h-2 rounded-full"
-                                                    :class="n._latencyMs <= 200 ? 'bg-green-500' : n._latencyMs <= 500 ? 'bg-yellow-400' : 'bg-red-500'"></span>
-                                                <span :class="n._latencyMs <= 200 ? 'text-green-500' : n._latencyMs <= 500 ? 'text-yellow-400' : 'text-red-500'"
-                                                    x-text="Math.round(n._latencyMs) + ' ms'"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="!n._checking && n._available === false">
-                                            <span class="inline-flex items-center gap-1 text-red-500">
-                                                <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                                                <span>失败</span>
-                                            </span>
+                                        <template x-if="!n._checking && n._available !== null">
+                                            <span x-html="n._available ? renderLatencyBar(n._latencyMs, true) : '<span class=\'text-red-500 text-xs\'>失败</span>'"></span>
                                         </template>
                                     </span>
-                                    <button type="button" class="btn btn-outline-accent btn-sm ml-2" @click="store.checkNode(i)">测速</button>
+                                    <button type="button" class="btn btn-outline-accent btn-sm" @click="store.checkNode(i)">测速</button>
                                 </div>
                             </template>
                         </div>
@@ -223,15 +328,72 @@
         </div>
     </template>
 
-    <!-- ── 检测结果弹窗 ── -->
-    <template x-if="resultModal">
-        <div class="modal-bg" @click.self="resultModal = false">
-            <div class="card w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <h3 class="text-lg font-bold mb-4 border-b border-slate-700/50 pb-2" x-text="resultTitle"></h3>
-                <div class="text-sm text-slate-300 mb-6 leading-relaxed" style="white-space: pre-wrap" x-text="resultContent"></div>
-                <div class="flex justify-end">
-                    <button type="button" class="btn btn-primary px-6" @click="resultModal = false">确定</button>
+    <!-- ── 去重预览弹窗 ── -->
+    <template x-if="dedupeModal">
+        <div class="modal-bg" @click.self="dedupeModal = false">
+            <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold">去重预览</h3>
+                    <button type="button" class="btn btn-secondary btn-sm" @click="dedupeModal = false">关闭</button>
                 </div>
+                <div class="flex items-center gap-3 mb-4">
+                    <label class="form-check">
+                        <input type="checkbox" x-model="dedupeAggressive" @change="loadDedupe()">
+                        <span class="text-sm">激进模式（忽略名称差异）</span>
+                    </label>
+                </div>
+                <template x-if="dedupeLoading">
+                    <div class="py-8 text-center" style="color:var(--muted)">分析中…</div>
+                </template>
+                <template x-if="!dedupeLoading && dedupeData">
+                    <div>
+                        <div class="grid grid-cols-3 gap-3 mb-5">
+                            <div class="stat-card p-4">
+                                <div>
+                                    <div class="stat-card-value" x-text="dedupeData.total_before"></div>
+                                    <div class="stat-card-label">去重前节点数</div>
+                                </div>
+                            </div>
+                            <div class="stat-card p-4">
+                                <div>
+                                    <div class="stat-card-value" x-text="dedupeData.total_after"></div>
+                                    <div class="stat-card-label">去重后节点数</div>
+                                </div>
+                            </div>
+                            <div class="stat-card p-4">
+                                <div>
+                                    <div class="stat-card-value text-red-400" x-text="dedupeData.duplicate_count"></div>
+                                    <div class="stat-card-label">重复节点</div>
+                                </div>
+                            </div>
+                        </div>
+                        <template x-if="dedupeData.duplicates && dedupeData.duplicates.length > 0">
+                            <div>
+                                <div class="section-title">重复节点对（最多展示 50 对）</div>
+                                <div class="space-y-2">
+                                    <template x-for="(pair, idx) in dedupeData.duplicates" :key="idx">
+                                        <div class="border rounded-lg p-3 text-sm" style="border-color:var(--border)">
+                                            <div class="flex items-start gap-2">
+                                                <span class="chip text-xs flex-shrink-0 mt-0.5">保留</span>
+                                                <span x-text="pair.kept.name + ' (' + pair.kept.type + ', ' + pair.kept.server + ')'"></span>
+                                            </div>
+                                            <div class="flex items-start gap-2 mt-1.5">
+                                                <span class="chip text-xs flex-shrink-0 mt-0.5" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border)">移除</span>
+                                                <span x-text="pair.removed.name + ' (' + pair.removed.type + ', ' + pair.removed.server + ')'"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!dedupeData.duplicates || dedupeData.duplicates.length === 0">
+                            <div class="empty-state">
+                                <i data-lucide="check-circle" class="w-8 h-8 text-green-500"></i>
+                                <span>未发现重复节点</span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
             </div>
         </div>
     </template>

@@ -7,8 +7,46 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import urllib.parse
 from typing import Any
+
+
+def _pick_proxy_field(p: dict, *keys: str):
+    """读取 Clash YAML 节点的首个非空字段（兼容 kebab-case / snake_case）。"""
+    for k in keys:
+        if k not in p:
+            continue
+        v = p[k]
+        if v is None:
+            continue
+        if isinstance(v, str) and not v.strip():
+            continue
+        return v
+    return None
+
+
+def _hysteria_mbps_from_bandwidth(v) -> str | None:
+    """从 up/down 带宽字段提取 Mbps 整数；支持 80 Mbps、纯数字等。"""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        if v <= 0:
+            return None
+        return str(int(v))
+    s = str(v).strip().lower()
+    if not s:
+        return None
+    m = re.search(r"([\d.]+)", s)
+    if not m:
+        return None
+    try:
+        n = float(m.group(1))
+    except ValueError:
+        return None
+    if n <= 0:
+        return None
+    return str(max(1, int(round(n))))
 
 _URI_PREFIXES = (
     "ss://",
@@ -365,19 +403,29 @@ def _parse_trojan(uri: str) -> dict[str, Any] | None:
 
 def proxy_dict_to_uri(proxy: dict) -> str | None:
     """将 Clash proxy 字典转换回分享链接 URI 字符串；不支持的协议返回 None。"""
-    t = (proxy.get("type") or "").lower()
+    p = dict(proxy)
+    t = str(p.get("type") or "").lower()
+    # 常见别名与 Meta 写法
+    if t in ("hy2",):
+        t = "hysteria2"
+        p["type"] = "hysteria2"
+    if t in ("shadowsocks",):
+        t = "ss"
+        p["type"] = "ss"
     if t == "vmess":
-        return _clash_vmess_to_uri(proxy)
+        return _clash_vmess_to_uri(p)
     if t == "vless":
-        return _clash_vless_to_uri(proxy)
+        return _clash_vless_to_uri(p)
     if t == "ss":
-        return _clash_ss_to_uri(proxy)
+        return _clash_ss_to_uri(p)
     if t == "ssr":
-        return _clash_ssr_to_uri(proxy)
+        return _clash_ssr_to_uri(p)
     if t == "trojan":
-        return _clash_trojan_to_uri(proxy)
+        return _clash_trojan_to_uri(p)
     if t == "hysteria2":
-        return _clash_hysteria2_to_uri(proxy)
+        return _clash_hysteria2_to_uri(p)
+    if t == "hysteria":
+        return _clash_hysteria_to_uri(p)
     return None
 
 
@@ -518,6 +566,52 @@ def _clash_trojan_to_uri(p: dict) -> str | None:
         if query:
             uri += "?" + query
         return uri + "#" + name
+    except Exception:
+        return None
+
+
+def _clash_hysteria_to_uri(p: dict) -> str | None:
+    """Clash hysteria（v1 协议）→ hysteria:// 分享链接；需 auth/password。"""
+    try:
+        name_raw = _pick_proxy_field(p, "name") or "Hysteria"
+        name = urllib.parse.quote(str(name_raw), safe="")
+        server = str(p["server"]).strip().strip("[]")
+        port = int(p["port"])
+        auth = _pick_proxy_field(p, "auth_str", "auth-str", "password", "auth")
+        if auth is None or str(auth).strip() == "":
+            return None
+        qp: dict[str, str] = {}
+        proto = str(_pick_proxy_field(p, "protocol") or "udp").lower()
+        if proto in ("udp", "webrtc", "wechat-video", "faketcp"):
+            qp["protocol"] = proto
+        qp["auth"] = str(auth)
+        obfs = _pick_proxy_field(p, "obfs")
+        if obfs:
+            qp["obfs"] = str(obfs)
+        obpwd = _pick_proxy_field(p, "obfs-password", "obfs_password")
+        if obpwd:
+            qp["obfs-password"] = str(obpwd)
+        peer = _pick_proxy_field(p, "sni", "peer")
+        if peer:
+            qp["peer"] = str(peer)
+        if p.get("skip-cert-verify"):
+            qp["insecure"] = "1"
+        up = _hysteria_mbps_from_bandwidth(_pick_proxy_field(p, "up"))
+        down = _hysteria_mbps_from_bandwidth(_pick_proxy_field(p, "down"))
+        if up:
+            qp["upmbps"] = up
+        if down:
+            qp["downmbps"] = down
+        alpn = p.get("alpn")
+        if isinstance(alpn, list) and alpn:
+            qp["alpn"] = str(alpn[0])
+        elif isinstance(alpn, str) and alpn.strip():
+            qp["alpn"] = alpn.strip()
+        q = urllib.parse.urlencode(qp)
+        host = server
+        if ":" in host and host.count(":") >= 2 and not host.startswith("["):
+            host = f"[{host}]"
+        return f"hysteria://{host}:{port}?{q}#{name}"
     except Exception:
         return None
 

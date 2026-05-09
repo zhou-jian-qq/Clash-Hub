@@ -2,6 +2,66 @@
 <div id="page-imports" class="hidden" x-data="{
     get store() { return $store.imports; },
 
+    /* ── QR 码弹窗（fetch + blob：统一走 Cookie/JWT Cookie，并把接口错误信息显示出来） ── */
+    qrModal: false,
+    qrLoading: false,
+    qrImgSrc: '',
+    qrErrMsg: '',
+    async openQR(nodeId) {
+        this.qrModal = true;
+        this.qrLoading = true;
+        if (this.qrImgSrc && String(this.qrImgSrc).startsWith('blob:')) {
+            URL.revokeObjectURL(this.qrImgSrc);
+        }
+        this.qrImgSrc = '';
+        this.qrErrMsg = '';
+        try {
+            const res = await fetch('/api/nodes/' + nodeId + '/qr.png', {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            const ctHead = res.headers.get('content-type') || '';
+            if (!res.ok) {
+                let msg = '';
+                if (ctHead.includes('application/json')) {
+                    const je = await res.json().catch(() => ({}));
+                    let d = je.detail ?? ('HTTP ' + res.status);
+                    if (Array.isArray(d)) {
+                        d = d.map(function (x) { return (x && x.msg) || String(x); }).join('; ');
+                    }
+                    msg = typeof d === 'string' ? d : JSON.stringify(d);
+                } else {
+                    msg = (await res.text().catch(function () { return ''; })) || ('请求失败 ' + res.status);
+                }
+                this.qrErrMsg = msg;
+                return;
+            }
+            if (!ctHead.includes('png') && !ctHead.includes('octet-stream')) {
+                this.qrErrMsg = '服务器未返回 PNG 图片';
+                return;
+            }
+            const blob = await res.blob();
+            if (!blob.size) {
+                this.qrErrMsg = '图片数据为空';
+                return;
+            }
+            this.qrImgSrc = URL.createObjectURL(blob);
+        } catch (e) {
+            this.qrErrMsg = e.message || String(e);
+        } finally {
+            this.qrLoading = false;
+        }
+    },
+    closeQrModal() {
+        if (this.qrImgSrc && String(this.qrImgSrc).startsWith('blob:')) {
+            URL.revokeObjectURL(this.qrImgSrc);
+        }
+        this.qrImgSrc = '';
+        this.qrErrMsg = '';
+        this.qrModal = false;
+        this.qrLoading = false;
+    },
+
     /* ── 批量导入弹窗 ── */
     importModal: false,
     importForm: { name: '导入', text: '' },
@@ -47,7 +107,7 @@
     async copyNodeAsV2ray() {
         await $store.imports.nodeToV2rayUri(this.nodeEditForm.proxy_yaml);
     },
-}" @keydown.escape.window="importModal = false; renameModal = false; nodeEditModal = false">
+}" @keydown.escape.window="importModal = false; renameModal = false; nodeEditModal = false; qrModal ? closeQrModal() : false">
 
     <!-- 工具栏 -->
     <div class="mb-4 space-y-3">
@@ -148,7 +208,10 @@
                             <div class="flex flex-wrap gap-1 w-full sm:w-auto sm:ml-auto sm:justify-end">
                                 <button type="button" class="btn btn-secondary btn-sm" @click="openNodeEdit(n)">编辑</button>
                                 <button type="button" class="btn btn-outline-accent btn-sm" @click="store.checkNode(n.id, true)">测速</button>
-                                <button type="button" class="btn btn-danger btn-sm" @click="store.deleteNode(n.id)">删除</button>
+                                <button type="button" class="btn btn-ghost btn-sm" @click="openQR(n.id)" title="生成节点 QR 二维码">
+                                    <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" @click="store.deleteNode(n.id)">删除</button>
                             </div>
                         </div>
                     </template>
@@ -215,6 +278,24 @@
                         title="将当前节点转换为 vmess:// / vless:// 等分享链接并复制">复制 V2Ray 链接</button>
                     <button type="button" class="btn btn-primary" @click="submitNodeEdit()">保存</button>
                 </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ── QR 码弹窗 ── -->
+    <template x-if="qrModal">
+        <div class="modal-bg" @click.self="closeQrModal()">
+            <div class="card w-full max-w-xs text-center">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold">节点 QR 码</h3>
+                    <button type="button" class="btn btn-secondary btn-sm" @click="closeQrModal()">关闭</button>
+                </div>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-3" x-show="qrLoading">正在生成…</p>
+                <div class="bg-white rounded-xl p-3 inline-block mb-4" x-show="qrImgSrc && !qrLoading">
+                    <img :src="qrImgSrc" alt="QR Code" class="qr-img max-w-[240px] h-auto">
+                </div>
+                <p class="text-red-400 text-sm mb-3 px-1" x-show="qrErrMsg" x-text="qrErrMsg"></p>
+                <p class="text-xs text-slate-400">扫描后在客户端添加节点</p>
             </div>
         </div>
     </template>

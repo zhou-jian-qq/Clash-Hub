@@ -1,5 +1,6 @@
 """导入批次与节点路由。"""
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,6 +24,8 @@ from services.aggregator_service import (
 )
 
 router = APIRouter()
+
+_log_imports = logging.getLogger(__name__)
 
 
 async def _touch_batch_updated(batch_id: int, db: AsyncSession) -> None:
@@ -289,6 +292,7 @@ async def node_qrcode(node_id: int, db: AsyncSession = Depends(get_db), _=Depend
 
     try:
         import qrcode
+
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=8, border=4)
         qr.add_data(uri)
         qr.make(fit=True)
@@ -297,8 +301,18 @@ async def node_qrcode(node_id: int, db: AsyncSession = Depends(get_db), _=Depend
         img.save(buf, format="PNG")
         buf.seek(0)
         return Response(content=buf.read(), media_type="image/png")
-    except ImportError:
-        raise HTTPException(503, "qrcode 库未安装，请在 requirements.txt 中添加 qrcode[pil]")
+    except ImportError as e:
+        _log_imports.warning("QR 依赖缺失: %s", e)
+        raise HTTPException(
+            503,
+            "QR 二维码依赖未就绪：请在运行环境中安装 qrcode[pil]（含 Pillow）。",
+        ) from e
+    except Exception as e:
+        _log_imports.exception("QR 生成失败")
+        raise HTTPException(
+            503,
+            "QR 图片生成异常，请检查是否已安装 Pillow，或稍后重试。",
+        ) from e
 
 
 @router.post("/api/imported-nodes/{node_id}/check")

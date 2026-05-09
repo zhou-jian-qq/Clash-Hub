@@ -1,0 +1,390 @@
+{# 设置页：6 子 Tab — 系统 / 过滤 / 模块 / 通知 / 安全 / 备份 #}
+<div id="page-settings" class="hidden" x-data="{
+    get store() { return $store.settings; },
+}">
+
+    <h2 class="text-xl font-bold mb-5">设置</h2>
+
+    <!-- 子 Tab 导航 -->
+    <div class="page-tabs">
+        <button type="button" class="page-tab" :class="store.activeTab==='system' && 'active'" @click="store.activeTab='system'">
+            <i data-lucide="settings" class="w-3.5 h-3.5 mr-1 inline-block align-text-top"></i>系统
+        </button>
+        <button type="button" class="page-tab" :class="store.activeTab==='filter' && 'active'" @click="store.activeTab='filter'">
+            <i data-lucide="filter" class="w-3.5 h-3.5 mr-1 inline-block align-text-top"></i>过滤
+        </button>
+        <button type="button" class="page-tab" :class="store.activeTab==='module' && 'active'" @click="store.activeTab='module'">
+            <i data-lucide="layers" class="w-3.5 h-3.5 mr-1 inline-block align-text-top"></i>模块化
+        </button>
+        <button type="button" class="page-tab" :class="store.activeTab==='notify' && 'active'" @click="store.activeTab='notify'">
+            <i data-lucide="bell" class="w-3.5 h-3.5 mr-1 inline-block align-text-top"></i>通知
+        </button>
+        <button type="button" class="page-tab" :class="store.activeTab==='security' && 'active'" @click="store.activeTab='security'">
+            <i data-lucide="shield" class="w-3.5 h-3.5 mr-1 inline-block align-text-top"></i>安全
+        </button>
+        <button type="button" class="page-tab" :class="store.activeTab==='backup' && 'active'" @click="store.activeTab='backup'">
+            <i data-lucide="archive" class="w-3.5 h-3.5 mr-1 inline-block align-text-top"></i>备份
+        </button>
+    </div>
+
+    <!-- ═══ Tab: 系统 ═══ -->
+    <div x-show="store.activeTab==='system'">
+        <div class="card max-w-2xl">
+            <div class="section-title">基础参数</div>
+            <div class="space-y-4">
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">抓取超时（秒）</label>
+                        <input type="number" min="5" max="120" x-model="store.data.fetch_timeout" placeholder="30">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">自动刷新间隔（小时）</label>
+                        <input type="number" min="1" max="168" x-model="store.data.refresh_interval_hours" placeholder="6">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">Mihomo 可执行文件路径</label>
+                    <input x-model="store.data.mihomo_path" placeholder="留空=自动探测">
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <label class="form-check">
+                        <input type="checkbox" x-model="store.data._autoExpiry">
+                        <span>订阅到期后自动禁用</span>
+                    </label>
+                    <label class="form-check">
+                        <input type="checkbox" x-model="store.data._autoEmpty">
+                        <span>订阅无节点时自动禁用</span>
+                    </label>
+                </div>
+                <div class="pt-2 flex justify-end">
+                    <button type="button" class="btn btn-primary" @click="store.saveSystem()">保存系统设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab: 过滤 ═══ -->
+    <div x-show="store.activeTab==='filter'">
+        <div class="card max-w-2xl">
+            <div class="section-title">节点协议白/黑名单</div>
+            <p class="text-sm mb-4" style="color:var(--muted)">多项用英文逗号分隔，区分大小写（ss, vmess, trojan, vless, hysteria2, tuic…）</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">仅保留协议（留空=全部）</label>
+                    <input x-model="store.data.include_types" placeholder="ss,vmess,trojan">
+                </div>
+                <div>
+                    <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">排除协议</label>
+                    <input x-model="store.data.exclude_types" placeholder="trojan,hysteria">
+                </div>
+                <div>
+                    <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">排除关键词（节点名包含则丢弃，逗号分隔）</label>
+                    <input x-model="store.data.exclude_keywords" placeholder="过期,套餐,官网">
+                </div>
+                <div class="pt-2 flex justify-end">
+                    <button type="button" class="btn btn-primary" @click="store.saveFilter()">保存过滤设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab: 模块化 ═══ -->
+    <div x-show="store.activeTab==='module'">
+        <div class="space-y-5 max-w-2xl">
+            <div class="card">
+                <div class="section-title">覆盖注入</div>
+                <p class="text-sm mb-4" style="color:var(--muted)">每块 YAML 将深合并到聚合结果对应区块，留空则不注入。</p>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">base 覆盖（顶层字段）</label>
+                        <textarea x-model="store.data.module_base_override_yaml" rows="4" class="font-mono text-xs w-full"
+                            placeholder="mixed-port: 7890&#10;allow-lan: true"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">tun 覆盖</label>
+                        <textarea x-model="store.data.module_tun_override_yaml" rows="4" class="font-mono text-xs w-full"
+                            placeholder="enable: true&#10;stack: system"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">dns 覆盖</label>
+                        <textarea x-model="store.data.module_dns_override_yaml" rows="4" class="font-mono text-xs w-full"
+                            placeholder="enable: true&#10;enhanced-mode: redir-host"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="section-title">企业 DNS</div>
+                <div class="space-y-4">
+                    <label class="form-check">
+                        <input type="checkbox" x-model="store.data._corpDnsEnabled">
+                        <span>启用企业 DNS</span>
+                    </label>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">企业 DNS 服务器（逗号分隔）</label>
+                        <input x-model="store.data.corp_dns_servers" placeholder="192.168.1.1,8.8.8.8">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">内网域名后缀（逗号分隔）</label>
+                        <input x-model="store.data.corp_domain_suffixes" placeholder="corp.example.com">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">内网 IP CIDR（逗号分隔）</label>
+                        <input x-model="store.data.corp_ipcidrs" placeholder="10.0.0.0/8,192.168.0.0/16">
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="section-title">规则尾追加</div>
+                <textarea x-model="store.data.rules_tail" rows="5" class="font-mono text-xs w-full"
+                    placeholder="- IP-CIDR,192.168.0.0/16,DIRECT&#10;- GEOIP,CN,DIRECT"></textarea>
+            </div>
+            <div class="flex justify-end">
+                <button type="button" class="btn btn-primary" @click="store.saveModule()">保存模块配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab: 通知 ═══ -->
+    <div x-show="store.activeTab==='notify'" x-data="{
+        notifyResult: null,
+        async sendTest() {
+            this.notifyResult = null;
+            try {
+                const r = await api('/api/notify/test', { method: 'POST', body: '{}' });
+                this.notifyResult = r;
+                toast(r.ok ? '测试通知已发送' : '发送失败：' + (r.message || '未配置渠道'), r.ok ? 'success' : 'error');
+            } catch (e) { toast(e.message, 'error'); }
+        },
+    }">
+        <div class="space-y-5 max-w-2xl">
+            <!-- Bark -->
+            <div class="notify-channel-card" :class="store.data.bark_url && 'enabled'">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="font-semibold text-sm flex items-center gap-2">
+                        <i data-lucide="bell" class="w-4 h-4"></i>Bark (iOS)
+                    </div>
+                    <span class="chip text-xs" x-show="store.data.bark_url">已配置</span>
+                </div>
+                <input x-model="store.data.bark_url"
+                    placeholder="https://api.day.app/yourkey/ 或留空禁用"
+                    @blur="store.saveNotify()">
+            </div>
+            <!-- Telegram -->
+            <div class="notify-channel-card" :class="store.data.tg_bot_token && store.data.tg_chat_id && 'enabled'">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="font-semibold text-sm flex items-center gap-2">
+                        <i data-lucide="send" class="w-4 h-4"></i>Telegram Bot
+                    </div>
+                    <span class="chip text-xs" x-show="store.data.tg_bot_token && store.data.tg_chat_id">已配置</span>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <input x-model="store.data.tg_bot_token" placeholder="Bot Token" @blur="store.saveNotify()">
+                    <input x-model="store.data.tg_chat_id" placeholder="Chat ID" @blur="store.saveNotify()">
+                </div>
+            </div>
+            <!-- Email -->
+            <div class="notify-channel-card" :class="store.data.smtp_host && 'enabled'">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="font-semibold text-sm flex items-center gap-2">
+                        <i data-lucide="mail" class="w-4 h-4"></i>Email (SMTP)
+                    </div>
+                    <span class="chip text-xs" x-show="store.data.smtp_host">已配置</span>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <input x-model="store.data.smtp_host" placeholder="smtp.example.com" @blur="store.saveNotify()">
+                    <input x-model="store.data.smtp_port" placeholder="端口（如 465）" @blur="store.saveNotify()">
+                    <input x-model="store.data.smtp_user" placeholder="用户名 / 邮箱" @blur="store.saveNotify()">
+                    <input type="password" x-model="store.data.smtp_pass" placeholder="密码" @blur="store.saveNotify()">
+                    <input x-model="store.data.smtp_to" placeholder="收件人邮箱" @blur="store.saveNotify()" class="sm:col-span-2">
+                </div>
+            </div>
+            <!-- Webhook -->
+            <div class="notify-channel-card" :class="store.data.webhook_url && 'enabled'">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="font-semibold text-sm flex items-center gap-2">
+                        <i data-lucide="webhook" class="w-4 h-4"></i>Webhook
+                    </div>
+                    <span class="chip text-xs" x-show="store.data.webhook_url">已配置</span>
+                </div>
+                <input x-model="store.data.webhook_url"
+                    placeholder="https://your-endpoint.example.com/hook"
+                    @blur="store.saveNotify()">
+            </div>
+            <!-- 发送测试 -->
+            <div class="flex flex-col sm:flex-row gap-3 items-start">
+                <button type="button" class="btn btn-outline-accent" @click="sendTest()">
+                    <i data-lucide="send" class="w-4 h-4 mr-1.5"></i>发送测试通知
+                </button>
+                <template x-if="notifyResult">
+                    <div class="text-sm" :class="notifyResult.ok ? 'text-green-400' : 'text-red-400'">
+                        <span x-text="notifyResult.ok ? '发送成功！' : (notifyResult.message || '发送失败')"></span>
+                        <template x-if="notifyResult.results">
+                            <ul class="mt-1 space-y-1" style="color:var(--muted)">
+                                <template x-for="(v, k) in Object.entries(notifyResult.results || {})" :key="k">
+                                    <li class="text-xs" x-text="v[0] + ': ' + (v[1] ? '✓ 成功' : '✗ 失败')"></li>
+                                </template>
+                            </ul>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab: 安全 ═══ -->
+    <div x-show="store.activeTab==='security'" x-data="{
+        pwForm: { old_password: '', new_password: '', confirm_password: '' },
+        async changePwd() {
+            if (!this.pwForm.new_password) { toast('新密码不能为空', 'error'); return; }
+            if (this.pwForm.new_password !== this.pwForm.confirm_password) { toast('两次输入的密码不一致', 'error'); return; }
+            try {
+                await api('/api/settings/admin-password', { method: 'POST', body: JSON.stringify({ old_password: this.pwForm.old_password, new_password: this.pwForm.new_password }) });
+                toast('密码已更新，请重新登录');
+                this.pwForm = { old_password: '', new_password: '', confirm_password: '' };
+                setTimeout(() => doLogout(), 1500);
+            } catch (e) { toast(e.message, 'error'); }
+        },
+    }">
+        <div class="space-y-5 max-w-md">
+            <div class="card">
+                <div class="section-title">系统信息</div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between py-1 border-b" style="border-color:var(--border)">
+                        <span style="color:var(--muted)">SECRET_KEY 来源</span>
+                        <span x-text="store.health && store.health.secret_key_source || '-'"></span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b" style="border-color:var(--border)">
+                        <span style="color:var(--muted)">数据库状态</span>
+                        <span :class="store.health && store.health.db && store.health.db.ok ? 'text-green-400' : 'text-red-400'"
+                            x-text="store.health && store.health.db ? (store.health.db.ok ? '正常' : '异常') : '-'"></span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span style="color:var(--muted)">Mihomo 状态</span>
+                        <span :class="store.health && store.health.mihomo && store.health.mihomo.available ? 'text-green-400' : 'text-slate-400'"
+                            x-text="store.health && store.health.mihomo ? (store.health.mihomo.available ? (store.health.mihomo.version || '可用') : '未配置') : '-'"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="section-title">修改管理员密码</div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">当前密码</label>
+                        <input type="password" x-model="pwForm.old_password" placeholder="留空可跳过验证（如首次设置）">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">新密码 <span class="text-red-400">*</span></label>
+                        <input type="password" x-model="pwForm.new_password" placeholder="新密码">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">确认新密码</label>
+                        <input type="password" x-model="pwForm.confirm_password" placeholder="再次输入新密码">
+                    </div>
+                    <div class="flex justify-end pt-1">
+                        <button type="button" class="btn btn-primary" @click="changePwd()">更新密码</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab: 备份 ═══ -->
+    <div x-show="store.activeTab==='backup'" x-data="{
+        dryRunResult: null,
+        importFile: null,
+        importLoading: false,
+        importConfirmed: false,
+
+        async exportBackup() {
+            window.open('/api/backup/export', '_blank');
+            toast('备份文件下载中…');
+        },
+        handleFileChange(e) {
+            this.importFile = e.target.files[0] || null;
+            this.dryRunResult = null;
+            this.importConfirmed = false;
+        },
+        async runDryRun() {
+            if (!this.importFile) { toast('请先选择备份文件', 'error'); return; }
+            this.importLoading = true;
+            this.dryRunResult = null;
+            try {
+                const fd = new FormData();
+                fd.append('file', this.importFile);
+                const res = await fetch('/api/backup/import?dry_run=true', {
+                    method: 'POST', body: fd,
+                });
+                if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || '导入失败'); }
+                this.dryRunResult = await res.json();
+                this.importConfirmed = false;
+            } catch (e) { toast(e.message, 'error'); }
+            finally { this.importLoading = false; }
+        },
+        async confirmImport() {
+            if (!this.importFile) return;
+            if (!confirm('确定执行真实导入？现有数据将被覆盖。')) return;
+            this.importLoading = true;
+            try {
+                const fd = new FormData();
+                fd.append('file', this.importFile);
+                const res = await fetch('/api/backup/import', {
+                    method: 'POST', body: fd,
+                });
+                if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || '导入失败'); }
+                const r = await res.json();
+                toast('导入成功：订阅 ' + (r.subscriptions || 0) + ' 条，节点批次 ' + (r.import_batches || 0) + ' 批，模板 ' + (r.templates || 0) + ' 个');
+                this.dryRunResult = null;
+                this.importFile = null;
+                this.importConfirmed = true;
+            } catch (e) { toast(e.message, 'error'); }
+            finally { this.importLoading = false; }
+        },
+    }">
+        <div class="space-y-5 max-w-xl">
+            <!-- 导出 -->
+            <div class="card">
+                <div class="section-title">导出备份</div>
+                <p class="text-sm mb-4" style="color:var(--muted)">将订阅、节点批次、自定义模板等数据打包下载为 ZIP 文件。</p>
+                <button type="button" class="btn btn-primary" @click="exportBackup()">
+                    <i data-lucide="download" class="w-4 h-4 mr-1.5"></i>下载备份 ZIP
+                </button>
+            </div>
+            <!-- 导入 -->
+            <div class="card">
+                <div class="section-title">恢复备份</div>
+                <p class="text-sm mb-4" style="color:var(--muted)">先「预览导入」确认数量，再「确认导入」执行覆盖。</p>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">选择备份 ZIP 文件</label>
+                        <input type="file" accept=".zip" @change="handleFileChange($event)"
+                            class="block w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600/20 file:text-blue-400 cursor-pointer">
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" class="btn btn-outline-accent"
+                            :disabled="!importFile || importLoading"
+                            @click="runDryRun()">
+                            <i data-lucide="search" class="w-4 h-4 mr-1.5"></i>预览导入
+                        </button>
+                        <template x-if="dryRunResult && !importConfirmed">
+                            <button type="button" class="btn btn-primary"
+                                :disabled="importLoading"
+                                @click="confirmImport()">
+                                <i data-lucide="upload" class="w-4 h-4 mr-1.5"></i>确认导入
+                            </button>
+                        </template>
+                    </div>
+                    <!-- 预览结果 -->
+                    <template x-if="dryRunResult">
+                        <div class="border rounded-xl p-4 text-sm space-y-2" style="border-color:var(--border)">
+                            <div class="font-semibold mb-2">预览结果</div>
+                            <div class="flex justify-between"><span style="color:var(--muted)">订阅</span><span x-text="dryRunResult.subscriptions + ' 条'"></span></div>
+                            <div class="flex justify-between"><span style="color:var(--muted)">节点批次</span><span x-text="dryRunResult.import_batches + ' 批'"></span></div>
+                            <div class="flex justify-between"><span style="color:var(--muted)">自定义模板</span><span x-text="dryRunResult.templates + ' 个'"></span></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>

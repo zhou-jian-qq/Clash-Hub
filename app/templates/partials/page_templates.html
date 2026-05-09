@@ -1,0 +1,163 @@
+{# 模板页：预设选择 + 自定义模板 CRUD + YAML 预览 #}
+<div id="page-templates" class="hidden" x-data="{
+    get store() { return $store.templates; },
+    tplModal: false,
+    tplForm: { id: null, name: '', yaml_content: '' },
+
+    openAddTpl() {
+        this.tplForm = { id: null, name: '', yaml_content: (typeof _TPL_YAML_STUB !== 'undefined' ? _TPL_YAML_STUB : '') };
+        this.tplModal = true;
+        this.$nextTick(() => { const el = document.getElementById('mTplName'); if (el) el.focus(); });
+    },
+    openEditTpl(t) {
+        this.tplForm = { id: t.id, name: t.name, yaml_content: t.yaml_content || '' };
+        this.tplModal = true;
+        this.$nextTick(() => { const el = document.getElementById('mTplName'); if (el) el.focus(); });
+    },
+    async saveTpl() {
+        if (!this.tplForm.name.trim()) { toast('模板名称不能为空', 'error'); return; }
+        try {
+            await $store.templates.saveTemplate(this.tplForm.id, { name: this.tplForm.name, yaml_content: this.tplForm.yaml_content });
+            this.tplModal = false;
+        } catch (_) {}
+    },
+}" @keydown.escape.window="tplModal = false">
+
+    <div class="flex items-center justify-between mb-5">
+        <h2 class="text-xl font-bold">模板</h2>
+        <button type="button" class="btn btn-ghost btn-sm" @click="store.refreshPreview()">
+            <i data-lucide="refresh-cw" class="w-4 h-4 mr-1"></i>刷新预览
+        </button>
+    </div>
+
+    <!-- 预设模板选择 -->
+    <div class="mb-6">
+        <div class="section-title">
+            <i data-lucide="package" class="w-3.5 h-3.5"></i>
+            内置预设
+        </div>
+        <div class="grid sm:grid-cols-3 gap-3">
+            <template x-for="name in ['精简版','标准版','完整版']" :key="name">
+                <div class="preset-row-config cursor-pointer"
+                    :class="store.active === name && 'is-active'"
+                    @click="store.selectPreset(name)">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="font-semibold text-sm" x-text="name"></span>
+                        <template x-if="store.active === name">
+                            <span class="chip text-xs">当前</span>
+                        </template>
+                    </div>
+                    <div class="text-xs" style="color:var(--muted)"
+                        x-text="({'精简版':'基础分流，7 个代理组','标准版':'常用服务分流，14 个代理组','完整版':'全面精细分流，33 个代理组'})[name] || ''"></div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- 自定义模板 -->
+    <div class="mb-6">
+        <div class="section-title flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+                <i data-lucide="file-code-2" class="w-3.5 h-3.5"></i>
+                自定义模板
+            </span>
+            <button type="button" class="btn btn-ghost btn-sm text-xs" @click="openAddTpl()">+ 新建</button>
+        </div>
+        <template x-if="store.customs.length === 0">
+            <div class="card">
+                <div class="empty-state py-8">
+                    <i data-lucide="file-plus" class="w-8 h-8"></i>
+                    <p class="text-sm">暂无自定义模板</p>
+                    <button type="button" class="btn btn-primary btn-sm" @click="openAddTpl()">创建模板</button>
+                </div>
+            </div>
+        </template>
+        <div class="space-y-2">
+            <template x-for="t in store.customs" :key="t.id">
+                <div class="card card-no-hover flex flex-col sm:flex-row sm:items-center gap-2 p-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-semibold" x-text="t.name"></span>
+                            <template x-if="store.active === 'custom:' + t.id">
+                                <span class="chip text-xs">当前</span>
+                            </template>
+                        </div>
+                        <div class="text-xs mt-0.5" style="color:var(--muted)">
+                            更新于 <span x-text="formatIsoTime(t.updated_at)"></span>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 flex-shrink-0">
+                        <button type="button" class="btn btn-outline-accent btn-sm"
+                            @click="store.selectCustom(t.id)">启用</button>
+                        <button type="button" class="btn btn-secondary btn-sm"
+                            @click="openEditTpl(t)">编辑</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm"
+                            @click="store.deleteTemplate(t.id)">删除</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- YAML 预览 -->
+    <div>
+        <div class="section-title">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+            配置预览
+        </div>
+        <div class="card p-0 overflow-hidden">
+            <!-- 工具栏 -->
+            <div class="flex items-center justify-between px-4 py-2.5 border-b" style="border-color:var(--border)">
+                <div class="preview-toggle">
+                    <button type="button" :class="store.preview && store.preview.mode==='yaml' && 'active'"
+                        @click="store.setPreviewMode('yaml')">YAML</button>
+                    <button type="button" :class="store.preview && store.preview.mode==='visual' && 'active'"
+                        @click="store.setPreviewMode('visual')">可视化</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs" style="color:var(--muted)" x-text="store.preview && store.preview.stats"></span>
+                    <button type="button" class="btn btn-ghost btn-sm p-1.5"
+                        @click="store.copyPreviewYaml()" title="复制 YAML">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- YAML 视图 -->
+            <div x-show="!store.preview || store.preview.mode !== 'visual'">
+                <div id="configPreviewYaml" class="yaml-viewer min-h-48">
+                    <div class="p-4" style="color:var(--muted)">点击「刷新预览」加载配置…</div>
+                </div>
+            </div>
+            <!-- 可视化视图 -->
+            <div x-show="store.preview && store.preview.mode === 'visual'"
+                id="configPreviewVisual"
+                class="flex gap-4 p-4 min-h-48 overflow-auto"></div>
+        </div>
+    </div>
+
+    <!-- ── 自定义模板编辑弹窗 ── -->
+    <template x-if="tplModal">
+        <div class="modal-bg" @click.self="tplModal = false">
+            <div class="card w-full max-w-3xl max-h-[92vh] flex flex-col">
+                <h3 class="text-lg font-bold mb-4" x-text="tplForm.id ? '编辑自定义模板' : '新建自定义模板'"></h3>
+                <div class="space-y-3 flex-1 min-h-0 overflow-y-auto">
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">模板名称 <span class="text-red-400">*</span></label>
+                        <input id="mTplName" x-model="tplForm.name" placeholder="模板名称">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">YAML 内容</label>
+                        <textarea x-model="tplForm.yaml_content" rows="22" class="font-mono text-xs w-full"
+                            placeholder="填写 Clash/Mihomo YAML 模板..."></textarea>
+                    </div>
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-4 border-t mt-3" style="border-color:var(--border)">
+                    <button type="button" class="btn btn-secondary" @click="tplModal = false">取消</button>
+                    <button type="button" class="btn btn-primary" @click="saveTpl()"
+                        x-text="tplForm.id ? '保存' : '创建'"></button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+</div>

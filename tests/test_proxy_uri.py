@@ -139,6 +139,36 @@ class TestProxyDictToUri:
         assert uri is not None
         assert uri.startswith("trojan://")
 
+    def test_hysteria_clash_to_uri(self):
+        p = {
+            "name": "Hy1",
+            "type": "hysteria",
+            "server": "1.2.3.4",
+            "port": 443,
+            "auth_str": "secret",
+            "protocol": "udp",
+            "sni": "ex.com",
+            "up": "80 Mbps",
+            "down": "100 Mbps",
+        }
+        uri = proxy_dict_to_uri(p)
+        assert uri is not None
+        assert uri.startswith("hysteria://")
+        assert "auth=secret" in uri
+        assert "peer=ex.com" in uri
+
+    def test_hy2_alias_to_hysteria2_uri(self):
+        p = {
+            "name": "N",
+            "type": "hy2",
+            "server": "1.2.3.4",
+            "port": 8443,
+            "password": "p",
+        }
+        uri = proxy_dict_to_uri(p)
+        assert uri is not None
+        assert uri.startswith("hysteria2://")
+
     def test_unsupported_type_returns_none(self):
         p = {"name": "test", "type": "wireguard", "server": "1.2.3.4", "port": 51820}
         uri = proxy_dict_to_uri(p)

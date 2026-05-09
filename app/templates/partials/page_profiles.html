@@ -1,0 +1,169 @@
+{# 订阅方案（SubProfile）页 #}
+<div id="page-profiles" class="hidden" x-data="{
+    get store() { return $store.profiles; },
+    modal: false,
+    modalMode: 'add',
+    form: { id: null, name: '', template_name: '标准版', tag_filter: '', custom_template_id: null },
+    qrModal: false,
+    qrUrl: '',
+    qrTitle: '',
+
+    openAdd() {
+        this.form = { id: null, name: '', template_name: '标准版', tag_filter: '', custom_template_id: null };
+        this.modalMode = 'add';
+        this.modal = true;
+        this.$nextTick(() => { const el = document.getElementById('mProfileName'); if (el) el.focus(); });
+    },
+    openEdit(p) {
+        this.form = { id: p.id, name: p.name, template_name: p.template_name || '标准版', tag_filter: p.tag_filter || '', custom_template_id: p.custom_template_id };
+        this.modalMode = 'edit';
+        this.modal = true;
+        this.$nextTick(() => { const el = document.getElementById('mProfileName'); if (el) el.focus(); });
+    },
+    async save() {
+        if (!this.form.name.trim()) { toast('名称不能为空', 'error'); return; }
+        try {
+            if (this.form.id) {
+                await $store.profiles.update(this.form.id, this.form);
+            } else {
+                await $store.profiles.create(this.form);
+            }
+            this.modal = false;
+        } catch (_) {}
+    },
+    buildSubUrl(p) {
+        return location.origin + '/sub/' + p.uuid;
+    },
+    async copyUrl(p) {
+        await copyText(this.buildSubUrl(p), '已复制订阅链接');
+    },
+    openQR(p) {
+        this.qrUrl = this.buildSubUrl(p);
+        this.qrTitle = '「' + p.name + '」订阅 QR 码';
+        this.qrModal = true;
+    },
+}" @keydown.escape.window="modal = false; qrModal = false">
+
+    <!-- 工具栏 -->
+    <div class="flex items-center justify-between mb-5">
+        <h2 class="text-xl font-bold">订阅方案</h2>
+        <button type="button" class="btn btn-primary btn-sm" @click="openAdd()">
+            <i data-lucide="plus" class="w-4 h-4 mr-1"></i>新建方案
+        </button>
+    </div>
+    <p class="text-sm mb-5" style="color:var(--muted)">
+        每个方案拥有独立的订阅链接和配置（模板 + 标签筛选），可分发给不同的客户端或设备使用。
+    </p>
+
+    <!-- 方案列表 -->
+    <template x-if="store.items.length === 0">
+        <div class="card">
+            <div class="empty-state">
+                <i data-lucide="layers" class="w-10 h-10"></i>
+                <p class="font-medium">暂无订阅方案</p>
+                <p class="text-sm">点击「新建方案」创建第一个</p>
+                <button type="button" class="btn btn-primary btn-sm" @click="openAdd()">新建方案</button>
+            </div>
+        </div>
+    </template>
+
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <template x-for="p in store.items" :key="p.id">
+            <div class="profile-card flex flex-col gap-3">
+                <!-- 标题 -->
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <div class="font-semibold truncate" x-text="p.name"></div>
+                        <div class="text-xs mt-0.5 flex flex-wrap gap-2" style="color:var(--muted)">
+                            <span>模板: <span class="font-medium" style="color:var(--text)" x-text="p.template_name || '默认'"></span></span>
+                            <template x-if="p.tag_filter">
+                                <span>标签: <span class="font-medium chip text-xs" x-text="p.tag_filter"></span></span>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button type="button" class="btn btn-ghost btn-sm p-1.5" @click="openEdit(p)" title="编辑">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm p-1.5" @click="store.deleteItem(p.id)" title="删除">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 订阅链接 -->
+                <div>
+                    <label class="text-xs mb-1 block" style="color:var(--muted)">订阅链接</label>
+                    <div class="flex gap-1.5">
+                        <input type="text" :value="buildSubUrl(p)" readonly
+                            class="font-mono text-xs flex-1 min-w-0"
+                            onclick="this.select()">
+                        <button type="button" class="btn btn-ghost btn-sm p-1.5 flex-shrink-0" @click="copyUrl(p)" title="复制链接">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm p-1.5 flex-shrink-0" @click="openQR(p)" title="显示 QR 码">
+                            <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- ── 新建/编辑弹窗 ── -->
+    <template x-if="modal">
+        <div class="modal-bg" @click.self="modal = false">
+            <div class="card w-full max-w-md max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold mb-5" x-text="modalMode==='add' ? '新建订阅方案' : '编辑订阅方案'"></h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">方案名称 <span class="text-red-400">*</span></label>
+                        <input id="mProfileName" x-model="form.name" placeholder="如：主力、备用、轻量版">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">使用模板</label>
+                        <select x-model="form.template_name">
+                            <option value="精简版">精简版（7 个代理组）</option>
+                            <option value="标准版">标准版（14 个代理组）</option>
+                            <option value="完整版">完整版（33 个代理组）</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium mb-1 block" style="color:var(--muted)">标签筛选</label>
+                        <input x-model="form.tag_filter" placeholder="仅包含此标签的订阅，留空=全部">
+                        <p class="text-xs mt-1" style="color:var(--muted)">与订阅管理中的标签对应，多个标签用英文逗号分隔</p>
+                    </div>
+                    <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-2">
+                        <button type="button" class="btn btn-secondary" @click="modal = false">取消</button>
+                        <button type="button" class="btn btn-primary" @click="save()"
+                            x-text="modalMode==='add' ? '创建' : '保存'"></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ── QR 码弹窗 ── -->
+    <template x-if="qrModal && qrUrl">
+        <div class="modal-bg" @click.self="qrModal = false">
+            <div class="card w-full max-w-xs text-center">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold truncate" x-text="qrTitle"></h3>
+                    <button type="button" class="btn btn-secondary btn-sm flex-shrink-0 ml-2" @click="qrModal = false">关闭</button>
+                </div>
+                <div class="bg-white rounded-xl p-3 inline-block mb-3">
+                    <img :src="'/api/qr?url=' + encodeURIComponent(qrUrl)"
+                        alt="QR Code"
+                        class="qr-img"
+                        onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden')">
+                    <p class="hidden text-red-400 text-sm">生成失败</p>
+                </div>
+                <p class="text-xs mb-3" style="color:var(--muted)">扫码在客户端添加此订阅方案</p>
+                <button type="button" class="btn btn-ghost btn-sm w-full" @click="copyText(qrUrl,'已复制')">
+                    <i data-lucide="copy" class="w-3.5 h-3.5 mr-1"></i>复制链接
+                </button>
+            </div>
+        </div>
+    </template>
+
+</div>

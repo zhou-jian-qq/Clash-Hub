@@ -16,39 +16,67 @@ body {
     background: var(--card);
     border-radius: 1rem;
     border: 1px solid var(--border);
-    padding: 1.75rem;
+    padding: 1.5rem;
     box-shadow: var(--shadow);
-    transition: box-shadow .25s ease, transform .25s ease, border-color .2s;
+    transition: box-shadow .2s ease, border-color .2s;
     min-width: 0;
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, .08);
+    border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+}
+
+.card-no-hover:hover {
+    border-color: var(--border);
 }
 
 .nav-item {
     display: flex;
     align-items: center;
     gap: .5rem;
-    padding: .5rem 1rem;
+    padding: .5rem .875rem;
     cursor: pointer;
-    border-radius: .5rem;
-    transition: background .15s;
-    color: var(--text);
+    border-radius: .625rem;
+    transition: background .15s, color .15s;
+    color: var(--muted);
+    font-size: .875rem;
+    font-weight: 500;
+    user-select: none;
 }
 
 .nav-item:hover {
     background: var(--nav-hover);
+    color: var(--text);
 }
 
 .nav-item.active {
     background: var(--nav-active);
-    color: #fff;
+    color: var(--accent);
+}
+
+:root[data-theme="dark"] .nav-item.active {
+    color: #93c5fd;
 }
 
 .nav-item svg {
-    opacity: .85;
+    opacity: .7;
+    transition: opacity .15s;
+    flex-shrink: 0;
+}
+
+.nav-item.active svg,
+.nav-item:hover svg {
+    opacity: 1;
+}
+
+.nav-label {
+    font-size: .6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    padding: .75rem .875rem .25rem;
+    opacity: .7;
 }
 
 .nav-toggle {
@@ -64,8 +92,8 @@ body {
 header {
     border-color: var(--border) !important;
     background: var(--bg-glass);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     position: sticky;
     top: 0;
     z-index: 40;
@@ -79,6 +107,7 @@ header {
     color: var(--muted) !important;
 }
 
+/* ── 登录页装饰 ── */
 .login-deco {
     position: absolute;
     inset: 0;
@@ -93,10 +122,164 @@ header {
     height: 60vmax;
     left: -20%;
     top: -20%;
-    background: radial-gradient(circle, rgba(59, 130, 246, .15), transparent 60%);
+    background: radial-gradient(circle, rgba(59, 130, 246, .12), transparent 60%);
     border-radius: 50%;
 }
 
+/* ── 子页 Tab 导航 ── */
+.page-tabs {
+    display: flex;
+    gap: .25rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0;
+}
+
+.page-tab {
+    padding: .5rem 1rem;
+    border-radius: .5rem .5rem 0 0;
+    font-size: .875rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    transition: color .15s, background .15s;
+    margin-bottom: -1px;
+}
+
+.page-tab:hover {
+    color: var(--text);
+    background: var(--nav-hover);
+}
+
+.page-tab.active {
+    color: var(--accent);
+    background: var(--card);
+    border-color: var(--border);
+    border-bottom-color: var(--card);
+}
+
+/* ── 空状态 ── */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .75rem;
+    padding: 3rem 1.5rem;
+    color: var(--muted);
+    text-align: center;
+}
+
+.empty-state svg {
+    opacity: .35;
+}
+
+/* ── 统计卡片 ── */
+.stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    min-width: 0;
+    transition: border-color .2s;
+}
+
+.stat-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+}
+
+.stat-card-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: .625rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text);
+}
+
+.stat-card-label {
+    font-size: .8125rem;
+    color: var(--muted);
+    margin-top: .125rem;
+}
+
+/* ── Health Dot ── */
+.health-dot {
+    width: .625rem;
+    height: .625rem;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.health-dot.ok      { background: #4ade80; box-shadow: 0 0 0 2px rgba(74,222,128,.25); }
+.health-dot.warn    { background: #fbbf24; box-shadow: 0 0 0 2px rgba(251,191,36,.25); }
+.health-dot.error   { background: #f87171; box-shadow: 0 0 0 2px rgba(248,113,113,.25); }
+.health-dot.unknown { background: #6b7280; }
+
+/* ── Chip / Tag ── */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .125rem .5rem;
+    border-radius: .375rem;
+    font-size: .75rem;
+    font-weight: 500;
+    background: var(--accent-subtle);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    user-select: none;
+}
+
+.chip-close {
+    cursor: pointer;
+    opacity: .6;
+    line-height: 1;
+    transition: opacity .1s;
+}
+
+.chip-close:hover { opacity: 1; }
+
+/* ── SSE 进度列表 ── */
+.sse-item {
+    display: flex;
+    align-items: center;
+    gap: .625rem;
+    padding: .375rem 0;
+    font-size: .875rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.sse-item:last-child { border-bottom: none; }
+
+.sse-spinner {
+    width: .875rem;
+    height: .875rem;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Desktop nav ── */
 @media (min-width: 1024px) {
     .nav-toggle {
         display: none;
@@ -104,11 +287,12 @@ header {
 
     .layout-nav {
         background: var(--bg-glass);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
     }
 }
 
+/* ── Mobile nav overlay ── */
 @media (max-width: 1023px) {
     .layout-nav {
         width: min(16rem, calc(100vw - 3.5rem));
@@ -119,25 +303,25 @@ header {
         padding: .75rem;
         flex-direction: column;
         flex-wrap: nowrap;
-        gap: .35rem;
+        gap: .25rem;
         background: var(--bg-glass);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
         position: fixed;
         left: 0;
-        top: 61px; /* Just below header if it has height, approx 61px */
+        top: 61px;
         z-index: 45;
         overflow-y: auto;
         transform: translateX(-105%);
         transition: transform .22s ease;
-        box-shadow: 18px 0 40px rgba(0, 0, 0, .22);
+        box-shadow: 18px 0 40px rgba(0, 0, 0, .28);
     }
 
     .layout-nav .nav-item {
         flex: 0 0 auto;
         white-space: nowrap;
-        padding: .65rem .75rem;
-        min-height: 2.75rem;
+        padding: .625rem .875rem;
+        min-height: 2.5rem;
     }
 
     .layout-main {
@@ -156,7 +340,7 @@ header {
         bottom: 0;
         top: 61px;
         z-index: 44;
-        background: rgba(15, 23, 42, .38);
+        background: rgba(0, 0, 0, .45);
     }
 }
 
@@ -170,22 +354,15 @@ header {
     .layout-nav {
         top: 57px;
         height: calc(100dvh - 57px);
-        padding: .75rem;
-        gap: .35rem;
+        padding: .625rem;
+        gap: .2rem;
     }
 
     .layout-nav .nav-item {
-        gap: .5rem;
-        padding: .65rem .75rem;
+        padding: .625rem .75rem;
         border-radius: .5rem;
-        font-size: .9rem;
-        line-height: 1.25rem;
-        min-height: 2.75rem;
-    }
-
-    .layout-nav .nav-item svg {
-        width: 1.1rem;
-        height: 1.1rem;
+        font-size: .875rem;
+        min-height: 2.5rem;
     }
 
     body.nav-open .nav-backdrop {
@@ -197,30 +374,21 @@ header {
     }
 
     .card {
-        border-radius: .75rem;
-        padding: 1rem;
-    }
-
-    .card:hover {
-        transform: none;
-    }
-
-    h2.text-xl {
-        font-size: 1.125rem;
-        line-height: 1.5rem;
+        border-radius: .875rem;
+        padding: 1.125rem;
     }
 }
 
 .app-logo {
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: .65rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: .625rem;
     flex-shrink: 0;
     object-fit: contain;
 }
 
 .app-logo-sm {
-    width: 2rem;
-    height: 2rem;
+    width: 1.875rem;
+    height: 1.875rem;
     border-radius: .5rem;
 }

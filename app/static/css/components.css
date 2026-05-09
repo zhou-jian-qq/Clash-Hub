@@ -47,12 +47,14 @@
 }
 
 .btn-secondary {
-    background: var(--muted);
-    color: #fff;
+    background: var(--nav-hover);
+    color: var(--text);
+    border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
-    opacity: .9;
+    background: color-mix(in srgb, var(--muted) 15%, var(--nav-hover));
+    border-color: var(--muted);
 }
 
 .btn-outline-danger {
@@ -569,4 +571,107 @@ textarea:focus {
 :root[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     filter: invert(1);
     cursor: pointer;
+}
+
+/* --- latency bar --- */
+.latency-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.latency-bar-track {
+    flex: 1;
+    max-width: 80px;
+    height: .375rem;
+    border-radius: 9999px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+/* --- Sparkline SVG --- */
+.sparkline-svg {
+    width: 100%;
+    height: 80px;
+    display: block;
+    overflow: visible;
+}
+
+.sparkline-svg .spark-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.sparkline-svg .spark-area {
+    fill: var(--accent);
+    opacity: .08;
+}
+
+.sparkline-svg .spark-dot-ok {
+    fill: #4ade80;
+}
+
+.sparkline-svg .spark-dot-fail {
+    fill: #f87171;
+}
+
+/* --- QR 码弹窗 --- */
+.qr-img {
+    image-rendering: pixelated;
+    border-radius: .5rem;
+    border: 4px solid #ffffff;
+    display: block;
+    margin: 0 auto;
+    max-width: 200px;
+    width: 100%;
+}
+
+/* --- notify channel card --- */
+.notify-channel-card {
+    border: 1px solid var(--border);
+    border-radius: .875rem;
+    padding: 1.25rem;
+    transition: border-color .2s;
+}
+
+.notify-channel-card.enabled {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+}
+
+/* --- profile card --- */
+.profile-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    transition: border-color .2s, box-shadow .2s;
+}
+
+.profile-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    box-shadow: var(--shadow-md);
+}
+
+/* --- section divider --- */
+.section-title {
+    font-size: .6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: .75rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
 }
