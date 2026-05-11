@@ -79,32 +79,75 @@ document.addEventListener('alpine:init', () => {
     /* ── 探测历史（由 page_logs.html 中的 x-data 内联处理，此处为兼容桩） ── */
     store.loadProbe = async function () {};
 
-    /** 从 User-Agent 提取客户端名称 */
+    /** 从 User-Agent 提取客户端名称和版本 */
     store.parseClient = function (ua) {
         if (!ua) return '';
-        const lower = ua.toLowerCase();
-        if (/clash[\s\-_]?verge/.test(lower)) {
-            const m = ua.match(/[Cc]lash[\s\-_][Vv]erge[\/\s]*([\d.]+)/);
-            return 'Clash Verge' + (m ? ' ' + m[1] : '');
+        const normalizedUa = String(ua).replace(/%20/gi, ' ');
+        const lower = normalizedUa.toLowerCase();
+        const versionPart = 'v?([0-9][0-9a-z.+_-]*)';
+        const cleanVersion = (version) => (version || '')
+            .replace(/^v/i, '')
+            .replace(/[;,)]+$/, '');
+        const display = (name, version) => {
+            const cleaned = cleanVersion(version);
+            return cleaned ? `${name} ${cleaned}` : name;
+        };
+        const matchClient = (patterns) => {
+            for (const [name, pattern] of patterns) {
+                const m = normalizedUa.match(pattern);
+                if (m) return display(name, m[1]);
+            }
+            return '';
+        };
+
+        const matched = matchClient([
+            ['Clash Verge', new RegExp(`clash[\\s._-]*verge(?:[\\s._-]*rev)?(?:/|\\s)+${versionPart}`, 'i')],
+            ['Clash Meta Android', new RegExp(`clashmetaforandroid/${versionPart}`, 'i')],
+            ['Clash for Windows', new RegExp(`clash(?:for)?windows/${versionPart}`, 'i')],
+            ['ClashX Pro', new RegExp(`clashx[\\s._-]*pro/${versionPart}`, 'i')],
+            ['ClashX', new RegExp(`clashx/${versionPart}`, 'i')],
+            ['Mihomo Party', new RegExp(`mihomo[\\s._-]*party/${versionPart}`, 'i')],
+            ['Mihomo', new RegExp(`mihomo/${versionPart}`, 'i')],
+            ['Clash Meta', new RegExp(`clash[\\s._-]*meta/${versionPart}`, 'i')],
+            ['Clash', new RegExp(`clash(?:[\\s._-]*premium)?/${versionPart}`, 'i')],
+            ['Stash', new RegExp(`stash/${versionPart}`, 'i')],
+            ['Surge', new RegExp(`surge(?:\\s+iOS)?/${versionPart}`, 'i')],
+            ['Quantumult X', new RegExp(`quantumult\\s*x/${versionPart}`, 'i')],
+            ['Quantumult', new RegExp(`quantumult/${versionPart}`, 'i')],
+            ['Shadowrocket', new RegExp(`shadowrocket/${versionPart}`, 'i')],
+            ['Loon', new RegExp(`loon/${versionPart}`, 'i')],
+            ['v2rayN', new RegExp(`v2rayn/${versionPart}`, 'i')],
+            ['v2rayNG', new RegExp(`v2rayng/${versionPart}`, 'i')],
+            ['NekoBox Android', new RegExp(`nekoboxforandroid/${versionPart}`, 'i')],
+            ['NekoBox', new RegExp(`nekobox/${versionPart}`, 'i')],
+            ['sing-box', new RegExp(`sing-box/${versionPart}`, 'i')],
+            ['Hiddify', new RegExp(`hiddify(?:next)?/${versionPart}`, 'i')],
+        ]);
+        if (matched) return matched;
+
+        if (/clash[\s._-]*verge/.test(lower)) {
+            return 'Clash Verge';
         }
-        if (/clashmetaforandroid/.test(lower)) {
-            const m = ua.match(/ClashMetaForAndroid\/([\d.]+)/i);
-            return 'Clash Meta Android' + (m ? ' ' + m[1] : '');
-        }
+        if (/clashmetaforandroid/.test(lower)) return 'Clash Meta Android';
+        if (/clash(?:for)?windows/.test(lower)) return 'Clash for Windows';
+        if (/clashx[\s._-]*pro/.test(lower)) return 'ClashX Pro';
+        if (/clashx/.test(lower)) return 'ClashX';
+        if (/mihomo[\s._-]*party/.test(lower)) return 'Mihomo Party';
         if (/clash\.meta/.test(lower) || /clashmeta/.test(lower)) return 'Clash Meta';
-        if (/mihomo/.test(lower)) {
-            const m = ua.match(/mihomo\/([\d.]+)/i);
-            return 'Mihomo' + (m ? ' ' + m[1] : '');
-        }
-        if (/stash/.test(lower)) {
-            const m = ua.match(/[Ss]tash\/([\d.]+)/);
-            return 'Stash' + (m ? ' ' + m[1] : '');
-        }
+        if (/mihomo/.test(lower)) return 'Mihomo';
+        if (/stash/.test(lower)) return 'Stash';
         if (/clash\//.test(lower) || /clash-premium/.test(lower)) return 'Clash';
         if (/surge/.test(lower)) return 'Surge';
+        if (/quantumult\s*x/.test(lower)) return 'Quantumult X';
         if (/quantumult/.test(lower)) return 'Quantumult';
         if (/shadowrocket/.test(lower)) return 'Shadowrocket';
         if (/loon/.test(lower)) return 'Loon';
+        if (/v2rayng/.test(lower)) return 'v2rayNG';
+        if (/v2rayn/.test(lower)) return 'v2rayN';
+        if (/nekoboxforandroid/.test(lower)) return 'NekoBox Android';
+        if (/nekobox/.test(lower)) return 'NekoBox';
+        if (/sing-box/.test(lower)) return 'sing-box';
+        if (/hiddify/.test(lower)) return 'Hiddify';
         return '';
     };
 });

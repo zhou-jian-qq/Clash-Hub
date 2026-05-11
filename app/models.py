@@ -4,9 +4,93 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
 
+import re as _re
+
+
 def _utc_now():
     """ORM 列默认值：当前 UTC 时间。"""
     return datetime.now(timezone.utc)
+
+
+def parse_user_agent(ua: str | None) -> tuple[str, str, str]:
+    """
+    从 User-Agent 提取 (client, client_version, client_display)。
+    client_display 为 "Name Version" 展示字符串；未知 UA 返回三个空串。
+    """
+    if not ua:
+        return "", "", ""
+    normalized = str(ua).replace("%20", " ")
+    lower = normalized.lower()
+
+    _VP = r"v?([0-9][0-9a-z.+_-]*)"
+
+    def _clean_version(v: str) -> str:
+        v = (v or "").lstrip("vV")
+        return _re.sub(r"[;,)]+$", "", v)
+
+    def _display(name: str, version: str) -> tuple[str, str, str]:
+        cv = _clean_version(version)
+        if not cv:
+            return name, "", name
+        return name, cv, f"{name} {cv}"
+
+    patterns = [
+        ("Clash Verge", rf"clash[\s._-]*verge(?:[\s._-]*rev)?(?:/|\s)+{_VP}"),
+        ("Clash Meta Android", rf"clashmetaforandroid/{_VP}"),
+        ("Clash for Windows", rf"clash(?:for)?windows/{_VP}"),
+        ("ClashX Pro", rf"clashx[\s._-]*pro/{_VP}"),
+        ("ClashX", rf"clashx/{_VP}"),
+        ("Mihomo Party", rf"mihomo[\s._-]*party/{_VP}"),
+        ("Mihomo", rf"mihomo/{_VP}"),
+        ("Clash Meta", rf"clash[\s._-]*meta/{_VP}"),
+        ("Clash", rf"clash(?:[\s._-]*premium)?/{_VP}"),
+        ("Stash", rf"stash/{_VP}"),
+        ("Surge", rf"surge(?:\s+iOS)?/{_VP}"),
+        ("Quantumult X", rf"quantumult\s*x/{_VP}"),
+        ("Quantumult", rf"quantumult/{_VP}"),
+        ("Shadowrocket", rf"shadowrocket/{_VP}"),
+        ("Loon", rf"loon/{_VP}"),
+        ("v2rayN", rf"v2rayn/{_VP}"),
+        ("v2rayNG", rf"v2rayng/{_VP}"),
+        ("NekoBox Android", rf"nekoboxforandroid/{_VP}"),
+        ("NekoBox", rf"nekobox/{_VP}"),
+        ("sing-box", rf"sing-box/{_VP}"),
+        ("Hiddify", rf"hiddify(?:next)?/{_VP}"),
+    ]
+    for name, pat in patterns:
+        m = _re.search(pat, normalized, _re.IGNORECASE)
+        if m:
+            c, cv, cd = _display(name, m.group(1))
+            return c, cv, cd
+
+    # fallback: name-only detection
+    fallbacks = [
+        ("Clash Verge", r"clash[\s._-]*verge"),
+        ("Clash Meta Android", r"clashmetaforandroid"),
+        ("Clash for Windows", r"clash(?:for)?windows"),
+        ("ClashX Pro", r"clashx[\s._-]*pro"),
+        ("ClashX", r"clashx"),
+        ("Mihomo Party", r"mihomo[\s._-]*party"),
+        ("Clash Meta", r"clash\.meta|clashmeta"),
+        ("Mihomo", r"mihomo"),
+        ("Stash", r"stash"),
+        ("Clash", r"clash/|clash-premium"),
+        ("Surge", r"surge"),
+        ("Quantumult X", r"quantumult\s*x"),
+        ("Quantumult", r"quantumult"),
+        ("Shadowrocket", r"shadowrocket"),
+        ("Loon", r"loon"),
+        ("v2rayNG", r"v2rayng"),
+        ("v2rayN", r"v2rayn"),
+        ("NekoBox Android", r"nekoboxforandroid"),
+        ("NekoBox", r"nekobox"),
+        ("sing-box", r"sing-box"),
+        ("Hiddify", r"hiddify"),
+    ]
+    for name, pat in fallbacks:
+        if _re.search(pat, lower):
+            return name, "", name
+    return "", "", ""
 
 
 def _iso_utc_api(dt: datetime | None) -> str | None:
@@ -232,6 +316,7 @@ class SubAccessLog(Base):
 
     def to_dict(self):
         display_ip = self.real_ip or self.ip
+        client, client_version, client_display = parse_user_agent(self.user_agent)
         return {
             "id": self.id,
             "ip": self.ip,
@@ -240,5 +325,8 @@ class SubAccessLog(Base):
             # 兼容旧前端字段名，避免页面显示为 '-'
             "client_ip": display_ip,
             "user_agent": self.user_agent,
+            "client": client,
+            "client_version": client_version,
+            "client_display": client_display,
             "accessed_at": _iso_utc_api(self.accessed_at),
         }
